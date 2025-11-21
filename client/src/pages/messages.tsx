@@ -46,7 +46,7 @@ export default function MessagesPage() {
     
     return {
       userId,
-      userName: lastMessage?.senderId === currentUser?.id ? lastMessage.receiverName : lastMessage.senderName,
+      userName: lastMessage ? (lastMessage.senderId === currentUser?.id ? lastMessage.receiverName : lastMessage.senderName) : "Unknown",
       lastMessage: lastMessage?.content || "",
       timestamp: lastMessage?.timestamp ? new Date(lastMessage.timestamp) : new Date(),
     };
@@ -66,7 +66,8 @@ export default function MessagesPage() {
 
   const sendMessageMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest("POST", "/api/messages", data);
+      const response = await apiRequest("POST", "/api/messages", data);
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
