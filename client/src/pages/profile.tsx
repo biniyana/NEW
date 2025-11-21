@@ -5,14 +5,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { User as UserType } from "@shared/schema";
+import { User as UserType, Item, Request } from "@shared/schema";
 import { MapPin, Mail, Phone, Star, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 
 export default function ProfilePage() {
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const { toast } = useToast();
+
+  const { data: items = [] } = useQuery<Item[]>({
+    queryKey: ["/api/items"],
+    queryFn: async () => {
+      return await fetch("/api/items").then(res => res.json());
+    },
+  });
+
+  const { data: requests = [] } = useQuery<Request[]>({
+    queryKey: ["/api/requests"],
+    queryFn: async () => {
+      return await fetch("/api/requests").then(res => res.json());
+    },
+  });
 
   useEffect(() => {
     const userStr = localStorage.getItem("user");
@@ -35,6 +50,13 @@ export default function ProfilePage() {
   if (!currentUser) return null;
 
   const isHousehold = currentUser.userType === "household";
+
+  // Calculate statistics
+  const itemsListed = items.filter(item => item.sellerId === currentUser.id).length;
+  const completedTransactions = requests.filter(
+    req => req.status === "Completed" && (req.requesterId === currentUser.id || req.responderId === currentUser.id)
+  ).length;
+  const hasCompletedTransactions = completedTransactions > 0;
 
   return (
     <div className="space-y-6">
@@ -180,7 +202,7 @@ export default function ProfilePage() {
       <div className="grid md:grid-cols-3 gap-6">
         <Card>
           <CardContent className="p-6 text-center">
-            <p className="text-3xl font-bold text-primary mb-2">12</p>
+            <p className="text-3xl font-bold text-primary mb-2">{isHousehold ? requests.filter(r => r.requesterId === currentUser.id).length : itemsListed}</p>
             <p className="text-sm text-muted-foreground">
               {isHousehold ? "Requests Made" : "Items Listed"}
             </p>
@@ -188,21 +210,23 @@ export default function ProfilePage() {
         </Card>
         <Card>
           <CardContent className="p-6 text-center">
-            <p className="text-3xl font-bold text-primary mb-2">8</p>
+            <p className="text-3xl font-bold text-primary mb-2">{completedTransactions}</p>
             <p className="text-sm text-muted-foreground">Completed Transactions</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-6 text-center">
-            <p className="text-3xl font-bold text-primary mb-2">
-              {new Date(currentUser.createdAt || new Date()).toLocaleDateString("en-US", {
-                month: "short",
-                year: "numeric",
-              })}
-            </p>
-            <p className="text-sm text-muted-foreground">Member Since</p>
-          </CardContent>
-        </Card>
+        {hasCompletedTransactions && (
+          <Card>
+            <CardContent className="p-6 text-center">
+              <p className="text-3xl font-bold text-primary mb-2">
+                {new Date(currentUser.createdAt || new Date()).toLocaleDateString("en-US", {
+                  month: "short",
+                  year: "numeric",
+                })}
+              </p>
+              <p className="text-sm text-muted-foreground">Member Since</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
