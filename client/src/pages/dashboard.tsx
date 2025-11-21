@@ -138,7 +138,7 @@ export default function Dashboard() {
         </main>
 
         {/* Jarvish Chatbot Bubble */}
-        <ChatbotBubble currentUser={currentUser} />
+        <ChatbotBubble currentUser={currentUser} activeTab={activeTab} />
       </div>
     </div>
   );

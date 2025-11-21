@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface ChatbotBubbleProps {
   currentUser: UserType | null;
+  activeTab?: string;
 }
 
 const SUGGESTED_PROMPTS = [
@@ -20,8 +21,13 @@ const SUGGESTED_PROMPTS = [
   "Tell me about eco-friendly practices",
 ];
 
-export function ChatbotBubble({ currentUser }: ChatbotBubbleProps) {
+export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
   const [isOpen, setIsOpen] = useState(false);
+
+  // Close chatbot when tab changes
+  useEffect(() => {
+    setIsOpen(false);
+  }, [activeTab]);
   const [messageText, setMessageText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
