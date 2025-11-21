@@ -7,6 +7,8 @@ import {
   type InsertRequest,
   type Message,
   type InsertMessage,
+  type ChatbotConversation,
+  type InsertChatbotConversation,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -41,6 +43,10 @@ export interface IStorage {
   getMessagesByUser(userId: string): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
   markMessageAsRead(id: string): Promise<Message | undefined>;
+
+  // Chatbot conversations
+  getChatbotConversation(userId: string): Promise<ChatbotConversation[]>;
+  createChatbotConversation(conv: InsertChatbotConversation): Promise<ChatbotConversation>;
 }
 
 export class MemStorage implements IStorage {
@@ -48,6 +54,7 @@ export class MemStorage implements IStorage {
   private items: Map<string, Item>;
   private requests: Map<string, Request>;
   private messages: Map<string, Message>;
+  private chatbotConversations: Map<string, ChatbotConversation[]>;
 
   constructor() {
     this.users = new Map();
