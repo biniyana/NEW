@@ -30,7 +30,8 @@ export default function MarketplacePage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  const currentUser: User | null = JSON.parse(localStorage.getItem("user") || "null");
+  const userStr = localStorage.getItem("user");
+  const currentUser: User | null = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
   const isJunkshop = currentUser?.userType === "junkshop";
 
   const { data: items = [], isLoading } = useQuery<Item[]>({

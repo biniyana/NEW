@@ -19,7 +19,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     const userStr = localStorage.getItem("user");
-    if (!userStr) {
+    if (!userStr || userStr === "undefined") {
       setLocation("/login");
       return;
     }

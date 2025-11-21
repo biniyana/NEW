@@ -11,7 +11,8 @@ import { Send, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function MessagesPage() {
-  const currentUser: User | null = JSON.parse(localStorage.getItem("user") || "null");
+  const userStr = localStorage.getItem("user");
+  const currentUser: User | null = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [messageText, setMessageText] = useState("");
   const { toast } = useToast();

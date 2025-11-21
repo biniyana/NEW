@@ -17,7 +17,8 @@ export default function RequestsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  const currentUser: User | null = JSON.parse(localStorage.getItem("user") || "null");
+  const userStr = localStorage.getItem("user");
+  const currentUser: User | null = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
   const isHousehold = currentUser?.userType === "household";
 
   const { data: requests = [], isLoading } = useQuery<RequestType[]>({

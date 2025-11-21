@@ -16,7 +16,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const userStr = localStorage.getItem("user");
-    if (userStr) {
+    if (userStr && userStr !== "undefined") {
       setCurrentUser(JSON.parse(userStr));
     }
   }, []);
