@@ -1,19 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, X, MessageCircle } from "lucide-react";
 import { User as UserType, ChatbotConversation } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
 
-interface ChatbotPageProps {
+interface ChatbotBubbleProps {
   currentUser: UserType | null;
 }
 
-export default function ChatbotPage({ currentUser }: ChatbotPageProps) {
+export function ChatbotBubble({ currentUser }: ChatbotBubbleProps) {
+  const [isOpen, setIsOpen] = useState(false);
   const [messageText, setMessageText] = useState("");
 
   const { data: conversations = [] } = useQuery<ChatbotConversation[]>({
@@ -46,24 +46,40 @@ export default function ChatbotPage({ currentUser }: ChatbotPageProps) {
     chatMutation.mutate(messageText);
   };
 
+  if (!currentUser) return null;
+
   return (
-    <div className="h-full">
-      <Card className="h-full flex flex-col">
-        <CardHeader className="bg-gradient-to-r from-primary to-chart-2">
-          <CardTitle className="text-white flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">🤖</div>
-            Jarvish - Your Eco-Assistant
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0 flex-1 flex flex-col">
+    <div className="fixed bottom-6 right-6 z-40">
+      {isOpen ? (
+        <div className="bg-card border border-border rounded-lg shadow-lg w-96 flex flex-col h-[500px] overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-primary to-chart-2 p-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-sm">
+                🤖
+              </div>
+              <span className="text-white font-semibold">Jarvish</span>
+            </div>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="text-white hover:bg-white/20 h-8 w-8"
+              onClick={() => setIsOpen(false)}
+              data-testid="button-close-jarvish"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {/* Chat Area */}
           <ScrollArea className="flex-1 p-4">
-            <div className="space-y-4">
+            <div className="space-y-3">
               {conversations.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-4xl mb-4">🤖</div>
-                  <p className="text-foreground font-medium mb-2">Welcome to Jarvish!</p>
-                  <p className="text-muted-foreground text-sm max-w-sm mx-auto">
-                    I'm your eco-friendly marketplace assistant. Ask me anything about recycling, selling items, collection requests, or how to use Waiz!
+                <div className="text-center py-8">
+                  <div className="text-3xl mb-2">🤖</div>
+                  <p className="text-foreground font-medium text-sm mb-1">Welcome to Jarvish!</p>
+                  <p className="text-muted-foreground text-xs">
+                    Ask about recycling, items, or Waiz features.
                   </p>
                 </div>
               ) : (
@@ -72,16 +88,13 @@ export default function ChatbotPage({ currentUser }: ChatbotPageProps) {
                   return (
                     <div key={conv.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                       <div
-                        className={`max-w-[80%] rounded-lg p-3 ${
+                        className={`max-w-[70%] rounded-lg p-2 text-sm ${
                           isUser
                             ? "bg-primary text-primary-foreground"
                             : "bg-muted text-foreground"
                         }`}
                       >
-                        <p className="text-sm">{conv.content}</p>
-                        <p className={`text-xs mt-1 ${isUser ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                          {new Date(conv.timestamp).toLocaleTimeString()}
-                        </p>
+                        <p>{conv.content}</p>
                       </div>
                     </div>
                   );
@@ -89,34 +102,48 @@ export default function ChatbotPage({ currentUser }: ChatbotPageProps) {
               )}
               {chatMutation.isPending && (
                 <div className="flex justify-start">
-                  <div className="bg-muted text-foreground rounded-lg p-3 flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <p className="text-sm">Thinking...</p>
+                  <div className="bg-muted text-foreground rounded-lg p-2 flex items-center gap-1 text-sm">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Thinking...</span>
                   </div>
                 </div>
               )}
             </div>
           </ScrollArea>
-          <div className="border-t border-border p-4">
+
+          {/* Input Area */}
+          <div className="border-t border-border p-3">
             <form onSubmit={handleSendMessage} className="flex gap-2">
               <Input
-                placeholder="Ask Jarvish anything about Waiz..."
+                placeholder="Ask Jarvish..."
                 value={messageText}
                 onChange={(e) => setMessageText(e.target.value)}
                 data-testid="input-jarvish-message"
                 disabled={chatMutation.isPending}
+                className="text-sm h-9"
               />
               <Button
                 type="submit"
+                size="icon"
                 disabled={!messageText.trim() || chatMutation.isPending}
                 data-testid="button-jarvish-send"
+                className="h-9 w-9"
               >
-                <Send className="w-4 h-4" />
+                <Send className="w-3 h-3" />
               </Button>
             </form>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      ) : (
+        <Button
+          onClick={() => setIsOpen(true)}
+          className="rounded-full w-14 h-14 shadow-lg"
+          size="icon"
+          data-testid="button-open-jarvish"
+        >
+          <MessageCircle className="w-6 h-6" />
+        </Button>
+      )}
     </div>
   );
 }
