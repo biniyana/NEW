@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -13,6 +13,8 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   userType: text("user_type").notNull(), // 'household' or 'junkshop'
   rating: text("rating").default("0"),
+  latitude: decimal("latitude", { precision: 10, scale: 7 }),
+  longitude: decimal("longitude", { precision: 10, scale: 7 }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -23,10 +25,23 @@ export const items = pgTable("items", {
   category: text("category").notNull(), // 'Plastic', 'Paper', 'Metal', 'Glass', 'Cardboard', 'Copper'
   price: text("price").notNull(),
   description: text("description"),
+  imageUrl: text("image_url"),
   emoji: text("emoji").default("📦"),
   sellerId: varchar("seller_id").notNull(),
   sellerName: text("seller_name").notNull(),
   status: text("status").default("available"), // 'available', 'sold', 'pending'
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Reviews and ratings
+export const reviews = pgTable("reviews", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  reviewerId: varchar("reviewer_id").notNull(),
+  reviewerName: text("reviewer_name").notNull(),
+  targetId: varchar("target_id").notNull(),
+  targetName: text("target_name").notNull(),
+  rating: integer("rating").notNull(), // 1-5 stars
+  comment: text("comment"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -78,6 +93,11 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
   timestamp: true,
 });
 
+export const insertReviewSchema = createInsertSchema(reviews).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -90,6 +110,9 @@ export type Request = typeof requests.$inferSelect;
 
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
+
+export type InsertReview = z.infer<typeof insertReviewSchema>;
+export type Review = typeof reviews.$inferSelect;
 
 // Rate list type (static data, not in database)
 export type Rate = {
