@@ -61,6 +61,7 @@ export class MemStorage implements IStorage {
     this.items = new Map();
     this.requests = new Map();
     this.messages = new Map();
+    this.chatbotConversations = new Map();
 
     // Seed some initial data for testing
     this.seedData();
@@ -341,6 +342,24 @@ export class MemStorage implements IStorage {
     const updated = { ...message, read: "true" };
     this.messages.set(id, updated);
     return updated;
+  }
+
+  // Chatbot conversations
+  async getChatbotConversation(userId: string): Promise<ChatbotConversation[]> {
+    return this.chatbotConversations.get(userId) || [];
+  }
+
+  async createChatbotConversation(conv: InsertChatbotConversation): Promise<ChatbotConversation> {
+    const id = randomUUID();
+    const conversation: ChatbotConversation = {
+      ...conv,
+      id,
+      timestamp: new Date(),
+    };
+    const existing = this.chatbotConversations.get(conv.userId) || [];
+    existing.push(conversation);
+    this.chatbotConversations.set(conv.userId, existing);
+    return conversation;
   }
 }
 

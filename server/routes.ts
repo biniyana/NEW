@@ -1,8 +1,10 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertItemSchema, insertRequestSchema, insertMessageSchema } from "@shared/schema";
+import { insertUserSchema, insertItemSchema, insertRequestSchema, insertMessageSchema, insertChatbotConversationSchema } from "@shared/schema";
 import OpenAI from "openai";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
@@ -209,6 +211,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(serializedMessage);
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Failed to update message" });
+    }
+  });
+
+  // Chatbot routes
+  app.get("/api/chatbot/:userId", async (req, res) => {
+    try {
+      const conversations = await storage.getChatbotConversation(req.params.userId);
+      res.json(conversations);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch chatbot history" });
+    }
+  });
+
+  app.post("/api/chatbot/chat", async (req, res) => {
+    try {
+      const { userId, message: userMessage } = req.body;
+
+      // Save user message
+      await storage.createChatbotConversation({
+        userId,
+        role: "user",
+        content: userMessage,
+      });
+
+      // Get conversation history for context - the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+      const history = await storage.getChatbotConversation(userId);
+
+      // Build conversation messages for OpenAI
+      const messages: any[] = [
+        {
+          role: "system",
+          content: "You are Jarvish, a helpful eco-friendly marketplace assistant for Waiz. You help users with questions about recycling, selling recyclables, collection requests, and the Waiz platform. Be friendly, knowledgeable about eco-friendly practices, and focused on helping users make sustainable choices.",
+        },
+      ];
+
+      // Add conversation history
+      history.forEach((conv) => {
+        messages.push({
+          role: conv.role,
+          content: conv.content,
+        });
+      });
+
+      // Get AI response
+      const response = await openai.chat.completions.create({
+        model: "gpt-5",
+        messages,
+        max_completion_tokens: 500,
+      });
+
+      const assistantMessage = response.choices[0].message.content || "I couldn't generate a response. Please try again.";
+
+      // Save assistant message
+      await storage.createChatbotConversation({
+        userId,
+        role: "assistant",
+        content: assistantMessage,
+      });
+
+      res.json({ message: assistantMessage });
+    } catch (error: any) {
+      console.error("Chatbot error:", error);
+      res.status(400).json({ message: error.message || "Failed to process chatbot message" });
     }
   });
 

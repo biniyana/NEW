@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Recycle, Home, Package, FileText, MessageCircle, DollarSign, User, LogOut } from "lucide-react";
+import { Recycle, Home, Package, FileText, MessageCircle, DollarSign, User, LogOut, Bot } from "lucide-react";
 import { User as UserType } from "@shared/schema";
 import MarketplacePage from "@/pages/marketplace";
 import RequestsPage from "@/pages/requests";
 import MessagesPage from "@/pages/messages";
 import RatesPage from "@/pages/rates";
 import ProfilePage from "@/pages/profile";
+import ChatbotPage from "@/pages/chatbot";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -123,6 +124,15 @@ export default function Dashboard() {
               <User className="w-4 h-4 mr-3" />
               Profile
             </Button>
+            <Button
+              variant={activeTab === "jarvish" ? "default" : "ghost"}
+              className="w-full justify-start bg-gradient-to-r from-primary/20 to-chart-2/20"
+              onClick={() => setActiveTab("jarvish")}
+              data-testid="button-nav-jarvish"
+            >
+              <Bot className="w-4 h-4 mr-3" />
+              Jarvish AI
+            </Button>
           </nav>
         </aside>
 
@@ -134,6 +144,7 @@ export default function Dashboard() {
           {activeTab === "messages" && <MessagesPage />}
           {activeTab === "rates" && <RatesPage />}
           {activeTab === "profile" && <ProfilePage />}
+          {activeTab === "jarvish" && <ChatbotPage currentUser={currentUser} />}
         </main>
       </div>
     </div>
