@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Message, User } from "@shared/schema";
-import { Send, MessageCircle } from "lucide-react";
+import { Send, MessageCircle, Search, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function MessagesPage() {
@@ -15,6 +15,7 @@ export default function MessagesPage() {
   const currentUser: User | null = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [messageText, setMessageText] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
 
   const { data: messages = [] } = useQuery<Message[]>({
@@ -51,6 +52,11 @@ export default function MessagesPage() {
       timestamp: lastMessage?.timestamp ? new Date(lastMessage.timestamp) : new Date(),
     };
   });
+
+  // Filter conversations based on search term
+  const filteredConversations = conversations.filter((conv) =>
+    conv.userName.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const selectedMessages = messages
     .filter(
@@ -107,18 +113,43 @@ export default function MessagesPage() {
       <div className="grid md:grid-cols-3 gap-6 h-[600px]">
         {/* Conversations List */}
         <Card className="md:col-span-1">
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle>Conversations</CardTitle>
+            <div className="relative mt-4">
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search conversations..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-8"
+                data-testid="input-search-messages"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+                  data-testid="button-clear-search"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="p-0">
-            <ScrollArea className="h-[500px]">
+            <ScrollArea className="h-[420px]">
               {conversations.length === 0 ? (
                 <div className="p-8 text-center">
                   <MessageCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                   <p className="text-sm text-muted-foreground">No messages yet</p>
                 </div>
+              ) : filteredConversations.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Search className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-sm text-muted-foreground">No conversations found</p>
+                  <p className="text-xs text-muted-foreground mt-2">Try a different search term</p>
+                </div>
               ) : (
-                conversations.map((conv) => (
+                filteredConversations.map((conv) => (
                   <button
                     key={conv.userId}
                     onClick={() => setSelectedUser(conv.userId)}
