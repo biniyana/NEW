@@ -1,0 +1,2355 @@
+<!doctype doctype>
+<html lang="en">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waiz - Eco Marketplace</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    
+    * {
+      box-sizing: border-box;
+    }
+
+    .fade-in {
+      animation: fadeIn 0.3s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .slide-in-right {
+      animation: slideInRight 0.3s ease-out;
+    }
+
+    @keyframes slideInRight {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+
+    .chat-bubble {
+      max-width: 80%;
+      word-wrap: break-word;
+    }
+
+    .scroll-smooth {
+      scroll-behavior: smooth;
+    }
+
+    .hover-lift {
+      transition: transform 0.2s ease;
+    }
+
+    .hover-lift:hover {
+      transform: translateY(-2px);
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+ </head>
+ <body class="scroll-smooth">
+  <div id="app"></div>
+  <script>
+    const defaultConfig = {
+      background_color: "#f0f9f4",
+      surface_color: "#ffffff",
+      text_color: "#1e3a2a",
+      primary_action_color: "#2d6a4f",
+      secondary_action_color: "#f4a261",
+      font_family: "Inter",
+      font_size: 16,
+      site_name: "Waiz",
+      tagline: "Eco Marketplace for Baguio",
+      hero_title: "Connect. Recycle. Sustain.",
+      hero_subtitle: "Bridging households and junkshops in Baguio for a greener tomorrow"
+    };
+
+    let config = { ...defaultConfig };
+    let currentUser = null;
+    let currentView = 'landing';
+    let chatMessages = [];
+    let isChatbotOpen = false;
+
+    // Data SDK Handler
+    const dataHandler = {
+      onDataChanged(data) {
+        // Store users data for reference
+        window.usersData = data;
+      }
+    };
+
+    // Mock data for demonstration
+    const mockItems = [
+      { id: 1, title: "Plastic Bottles (50pcs)", price: "₱150", seller: "GreenCycle Junkshop", image: "🍾", category: "Plastic" },
+      { id: 2, title: "Newspapers Bundle", price: "₱80", seller: "EcoHub Baguio", image: "📰", category: "Paper" },
+      { id: 3, title: "Aluminum Cans (30pcs)", price: "₱120", seller: "RecyclePoint", image: "🥫", category: "Metal" },
+      { id: 4, title: "Glass Bottles", price: "₱100", seller: "GreenCycle Junkshop", image: "🍷", category: "Glass" }
+    ];
+
+    const mockRequests = [
+      { id: 1, type: "Collection", items: "Mixed recyclables", status: "Pending", date: "2024-01-15", address: "Session Road, Baguio" },
+      { id: 2, type: "Purchase", items: "Plastic bottles", status: "Completed", date: "2024-01-10", address: "Burnham Park Area" }
+    ];
+
+    const rateList = [
+      { material: "Plastic Bottles (PET)", price: "₱3 per piece", icon: "🍾" },
+      { material: "Newspapers", price: "₱8 per kilo", icon: "📰" },
+      { material: "Aluminum Cans", price: "₱4 per piece", icon: "🥫" },
+      { material: "Glass Bottles", price: "₱2 per piece", icon: "🍷" },
+      { material: "Cardboard", price: "₱6 per kilo", icon: "📦" },
+      { material: "Copper Wire", price: "₱350 per kilo", icon: "🔌" }
+    ];
+
+    async function initializeApp() {
+      const initResult = await window.dataSdk.init(dataHandler);
+      if (!initResult.isOk) {
+        console.error("Failed to initialize data SDK");
+      }
+
+      if (window.elementSdk) {
+        window.elementSdk.init({
+          defaultConfig,
+          onConfigChange: async (newConfig) => {
+            config = newConfig;
+            render();
+          },
+          mapToCapabilities: (cfg) => ({
+            recolorables: [
+              {
+                get: () => cfg.background_color || defaultConfig.background_color,
+                set: (value) => {
+                  cfg.background_color = value;
+                  window.elementSdk.setConfig({ background_color: value });
+                }
+              },
+              {
+                get: () => cfg.surface_color || defaultConfig.surface_color,
+                set: (value) => {
+                  cfg.surface_color = value;
+                  window.elementSdk.setConfig({ surface_color: value });
+                }
+              },
+              {
+                get: () => cfg.text_color || defaultConfig.text_color,
+                set: (value) => {
+                  cfg.text_color = value;
+                  window.elementSdk.setConfig({ text_color: value });
+                }
+              },
+              {
+                get: () => cfg.primary_action_color || defaultConfig.primary_action_color,
+                set: (value) => {
+                  cfg.primary_action_color = value;
+                  window.elementSdk.setConfig({ primary_action_color: value });
+                }
+              },
+              {
+                get: () => cfg.secondary_action_color || defaultConfig.secondary_action_color,
+                set: (value) => {
+                  cfg.secondary_action_color = value;
+                  window.elementSdk.setConfig({ secondary_action_color: value });
+                }
+              }
+            ],
+            borderables: [],
+            fontEditable: {
+              get: () => cfg.font_family || defaultConfig.font_family,
+              set: (value) => {
+                cfg.font_family = value;
+                window.elementSdk.setConfig({ font_family: value });
+              }
+            },
+            fontSizeable: {
+              get: () => cfg.font_size || defaultConfig.font_size,
+              set: (value) => {
+                cfg.font_size = value;
+                window.elementSdk.setConfig({ font_size: value });
+              }
+            }
+          }),
+          mapToEditPanelValues: (cfg) => new Map([
+            ["site_name", cfg.site_name || defaultConfig.site_name],
+            ["tagline", cfg.tagline || defaultConfig.tagline],
+            ["hero_title", cfg.hero_title || defaultConfig.hero_title],
+            ["hero_subtitle", cfg.hero_subtitle || defaultConfig.hero_subtitle]
+          ])
+        });
+        
+        if (window.elementSdk.config) {
+          config = window.elementSdk.config;
+        }
+      }
+
+      render();
+    }
+
+    function render() {
+      const app = document.getElementById('app');
+      const customFont = config.font_family || defaultConfig.font_family;
+      const baseSize = config.font_size || defaultConfig.font_size;
+      const baseFontStack = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
+      app.style.fontFamily = `${customFont}, ${baseFontStack}`;
+      app.style.backgroundColor = config.background_color || defaultConfig.background_color;
+      app.style.color = config.text_color || defaultConfig.text_color;
+      app.style.minHeight = '100%';
+
+      let content = '';
+
+      if (currentView === 'landing') {
+        content = renderLanding();
+      } else if (currentView === 'about') {
+        content = renderAbout();
+      } else if (currentView === 'login') {
+        content = renderLogin();
+      } else if (currentView === 'signup') {
+        content = renderSignup();
+      } else if (currentView === 'dashboard') {
+        content = renderDashboard();
+      }
+
+      app.innerHTML = content + renderChatbot();
+      applyFontSizes();
+    }
+
+    function applyFontSizes() {
+      const baseSize = config.font_size || defaultConfig.font_size;
+      
+      document.querySelectorAll('.text-hero').forEach(el => el.style.fontSize = `${baseSize * 2.5}px`);
+      document.querySelectorAll('.text-xl-custom').forEach(el => el.style.fontSize = `${baseSize * 1.5}px`);
+      document.querySelectorAll('.text-lg-custom').forEach(el => el.style.fontSize = `${baseSize * 1.25}px`);
+      document.querySelectorAll('.text-base-custom').forEach(el => el.style.fontSize = `${baseSize}px`);
+      document.querySelectorAll('.text-sm-custom').forEach(el => el.style.fontSize = `${baseSize * 0.875}px`);
+      document.querySelectorAll('.text-xs-custom').forEach(el => el.style.fontSize = `${baseSize * 0.75}px`);
+    }
+
+    function renderLanding() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const secondaryColor = config.secondary_action_color || defaultConfig.secondary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+      const siteName = config.site_name || defaultConfig.site_name;
+      const tagline = config.tagline || defaultConfig.tagline;
+      const heroTitle = config.hero_title || defaultConfig.hero_title;
+      const heroSubtitle = config.hero_subtitle || defaultConfig.hero_subtitle;
+
+      return `
+        <div class="fade-in">
+          <!-- Header -->
+          <header style="background-color: ${surfaceColor}; border-bottom: 2px solid ${primaryColor}20;" class="sticky top-0 z-50 shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+              <div class="flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                  <div style="background: linear-gradient(135deg, ${primaryColor}, ${secondaryColor});" class="w-10 h-10 rounded-lg flex items-center justify-center text-xl">
+                    ♻️
+                  </div>
+                  <div>
+                    <h1 class="text-xl-custom font-bold" style="color: ${textColor};">${siteName}</h1>
+                    <p class="text-xs-custom" style="color: ${textColor}80;">${tagline}</p>
+                  </div>
+                </div>
+                <nav class="flex gap-4">
+                  <button onclick="navigateTo('about')" style="color: ${textColor};" class="text-base-custom hover:opacity-80 transition-opacity">About</button>
+                  <button onclick="navigateTo('login')" style="background-color: ${primaryColor}; color: ${surfaceColor};" class="px-6 py-2 rounded-lg text-base-custom font-semibold hover:opacity-90 transition-opacity">Login</button>
+                </nav>
+              </div>
+            </div>
+          </header>
+
+          <!-- Hero Section -->
+          <section class="py-20 px-4">
+            <div class="max-w-6xl mx-auto text-center">
+              <h2 class="text-hero font-bold mb-6" style="color: ${textColor};">${heroTitle}</h2>
+              <p class="text-lg-custom mb-10" style="color: ${textColor}90; max-width: 600px; margin-left: auto; margin-right: auto;">
+                ${heroSubtitle}
+              </p>
+              <div class="flex gap-4 justify-center flex-wrap">
+                <button onclick="navigateTo('signup')" style="background-color: ${primaryColor}; color: ${surfaceColor};" class="px-8 py-4 rounded-lg text-lg-custom font-semibold hover:opacity-90 transition-opacity hover-lift shadow-lg">
+                  Get Started
+                </button>
+                <button onclick="navigateTo('about')" style="background-color: ${surfaceColor}; color: ${primaryColor}; border: 2px solid ${primaryColor};" class="px-8 py-4 rounded-lg text-lg-custom font-semibold hover:opacity-90 transition-opacity hover-lift">
+                  Learn More
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Features Grid -->
+          <section class="py-16 px-4">
+            <div class="max-w-6xl mx-auto">
+              <h3 class="text-xl-custom font-bold text-center mb-12" style="color: ${textColor};">How Waiz Works</h3>
+              <div class="grid md:grid-cols-3 gap-8">
+                ${renderFeatureCard('🏠', 'For Households', 'List your recyclables and connect with nearby junkshops for easy pickup', surfaceColor, textColor, primaryColor)}
+                ${renderFeatureCard('🏪', 'For Junkshops', 'Discover recyclable materials from households in Baguio and manage collections', surfaceColor, textColor, primaryColor)}
+                ${renderFeatureCard('💬', 'Direct Communication', 'Chat directly with households or junkshops to arrange collections and sales', surfaceColor, textColor, primaryColor)}
+              </div>
+            </div>
+          </section>
+        </div>
+      `;
+    }
+
+    function renderFeatureCard(icon, title, description, surfaceColor, textColor, accentColor) {
+      return `
+        <div style="background-color: ${surfaceColor}; border: 2px solid ${accentColor}20;" class="rounded-xl p-6 hover-lift shadow-md transition-all">
+          <div class="text-5xl mb-4">${icon}</div>
+          <h4 class="text-lg-custom font-semibold mb-3" style="color: ${textColor};">${title}</h4>
+          <p class="text-base-custom" style="color: ${textColor}80;">${description}</p>
+        </div>
+      `;
+    }
+
+    function renderAbout() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+      const siteName = config.site_name || defaultConfig.site_name;
+
+      return `
+        <div class="fade-in">
+          ${renderHeader()}
+          <div class="max-w-4xl mx-auto px-4 py-12">
+            <button onclick="navigateTo('landing')" style="color: ${primaryColor};" class="mb-6 flex items-center gap-2 text-base-custom hover:opacity-80">
+              ← Back
+            </button>
+            
+            <h2 class="text-xl-custom font-bold mb-6" style="color: ${textColor};">About ${siteName}</h2>
+            
+            <div style="background-color: ${surfaceColor};" class="rounded-xl p-8 shadow-lg mb-8">
+              <p class="text-base-custom mb-4" style="color: ${textColor};">
+                ${siteName} is an innovative eco-marketplace designed specifically for Baguio City. We bridge the gap between households and junkshops, making recycling easier and more accessible for everyone.
+              </p>
+              <p class="text-base-custom mb-4" style="color: ${textColor};">
+                Our platform enables households to connect with local junkshops for the collection and sale of recyclable materials. Whether you're a household looking to responsibly dispose of recyclables or a junkshop seeking new sources of materials, ${siteName} makes the process seamless.
+              </p>
+              
+              <h3 class="text-lg-custom font-semibold mt-8 mb-4" style="color: ${textColor};">Key Features</h3>
+              <ul class="space-y-3">
+                ${renderListItem('📍 Location-based matching with junkshops in Baguio', textColor)}
+                ${renderListItem('💰 Transparent rate lists for all recyclable materials', textColor)}
+                ${renderListItem('📱 Direct messaging between households and junkshops', textColor)}
+                ${renderListItem('🗓️ Easy collection request scheduling', textColor)}
+                ${renderListItem('⭐ Rating system for trust and quality', textColor)}
+              </ul>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderListItem(text, textColor) {
+      return `<li class="text-base-custom flex items-start gap-2" style="color: ${textColor}80;"><span>${text}</span></li>`;
+    }
+
+    function renderLogin() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="fade-in min-h-screen flex items-center justify-center px-4 py-12">
+          <div style="background-color: ${surfaceColor};" class="rounded-2xl shadow-2xl p-8 w-full max-w-md">
+            <div class="text-center mb-8">
+              <div class="text-5xl mb-4">♻️</div>
+              <h2 class="text-xl-custom font-bold mb-2" style="color: ${textColor};">Welcome Back</h2>
+              <p class="text-base-custom" style="color: ${textColor}80;">Log in to your Waiz account</p>
+            </div>
+
+            <form onsubmit="handleLogin(event)" class="space-y-4">
+              <div>
+                <label class="text-sm-custom font-medium block mb-2" style="color: ${textColor};">Email or Phone</label>
+                <input 
+                  type="text" 
+                  id="login-email"
+                  required
+                  style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                  class="w-full px-4 py-3 rounded-lg text-base-custom focus:outline-none focus:ring-2"
+                  placeholder="Enter your email or phone"
+                >
+              </div>
+
+              <div>
+                <label class="text-sm-custom font-medium block mb-2" style="color: ${textColor};">Password</label>
+                <input 
+                  type="password" 
+                  id="login-password"
+                  required
+                  style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                  class="w-full px-4 py-3 rounded-lg text-base-custom focus:outline-none focus:ring-2"
+                  placeholder="Enter your password"
+                >
+              </div>
+
+              <button 
+                type="submit"
+                style="background-color: ${primaryColor}; color: ${surfaceColor};"
+                class="w-full py-3 rounded-lg text-base-custom font-semibold hover:opacity-90 transition-opacity"
+              >
+                Log In
+              </button>
+            </form>
+
+            <div class="mt-6 text-center">
+              <p class="text-sm-custom" style="color: ${textColor}80;">
+                Don't have an account? 
+                <button onclick="navigateTo('signup')" style="color: ${primaryColor};" class="font-semibold hover:underline">Sign Up</button>
+              </p>
+              <button onclick="navigateTo('landing')" style="color: ${textColor}80;" class="text-sm-custom mt-3 hover:opacity-80">
+                ← Back to Home
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderSignup() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const secondaryColor = config.secondary_action_color || defaultConfig.secondary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="fade-in min-h-screen flex items-center justify-center px-4 py-12">
+          <div style="background-color: ${surfaceColor};" class="rounded-2xl shadow-2xl p-8 w-full max-w-md">
+            <div class="text-center mb-8">
+              <div class="text-5xl mb-4">♻️</div>
+              <h2 class="text-xl-custom font-bold mb-2" style="color: ${textColor};">Join Waiz</h2>
+              <p class="text-base-custom" style="color: ${textColor}80;">Create your account</p>
+            </div>
+
+            <form onsubmit="handleSignup(event)" class="space-y-4">
+              <div>
+                <label class="text-sm-custom font-medium block mb-2" style="color: ${textColor};">I am a:</label>
+                <div class="grid grid-cols-2 gap-3">
+                  <button 
+                    type="button"
+                    onclick="selectUserType('household')"
+                    id="type-household"
+                    style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                    class="py-3 rounded-lg text-base-custom font-medium hover:opacity-80 transition-all"
+                  >
+                    🏠 Household
+                  </button>
+                  <button 
+                    type="button"
+                    onclick="selectUserType('junkshop')"
+                    id="type-junkshop"
+                    style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                    class="py-3 rounded-lg text-base-custom font-medium hover:opacity-80 transition-all"
+                  >
+                    🏪 Junkshop
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label for="signup-name" class="text-sm-custom font-medium block mb-2" style="color: ${textColor};">Full Name</label>
+                <input 
+                  type="text" 
+                  id="signup-name"
+                  required
+                  style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                  class="w-full px-4 py-3 rounded-lg text-base-custom focus:outline-none focus:ring-2"
+                  placeholder="Enter your name"
+                >
+              </div>
+
+              <div>
+                <label for="signup-email" class="text-sm-custom font-medium block mb-2" style="color: ${textColor};">Email</label>
+                <input 
+                  type="email" 
+                  id="signup-email"
+                  required
+                  style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                  class="w-full px-4 py-3 rounded-lg text-base-custom focus:outline-none focus:ring-2"
+                  placeholder="your@email.com"
+                >
+              </div>
+
+              <div>
+                <label for="signup-phone" class="text-sm-custom font-medium block mb-2" style="color: ${textColor};">Phone Number</label>
+                <input 
+                  type="tel" 
+                  id="signup-phone"
+                  required
+                  style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                  class="w-full px-4 py-3 rounded-lg text-base-custom focus:outline-none focus:ring-2"
+                  placeholder="+63 XXX XXX XXXX"
+                >
+              </div>
+
+              <div>
+                <label for="signup-address" class="text-sm-custom font-medium block mb-2" style="color: ${textColor};">
+                  <span id="address-label">Address in Baguio</span>
+                </label>
+                <input 
+                  type="text" 
+                  id="signup-address"
+                  required
+                  style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                  class="w-full px-4 py-3 rounded-lg text-base-custom focus:outline-none focus:ring-2"
+                  placeholder="Street, Barangay, Baguio City"
+                >
+                <p class="text-xs-custom mt-1" style="color: ${textColor}60;">📍 Used for location-based matching</p>
+              </div>
+
+              <div>
+                <label for="signup-password" class="text-sm-custom font-medium block mb-2" style="color: ${textColor};">Password</label>
+                <input 
+                  type="password" 
+                  id="signup-password"
+                  required
+                  style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                  class="w-full px-4 py-3 rounded-lg text-base-custom focus:outline-none focus:ring-2"
+                  placeholder="Create a password"
+                >
+              </div>
+
+              <button 
+                type="submit"
+                id="signup-button"
+                disabled
+                style="background-color: ${primaryColor}60; color: ${surfaceColor};"
+                class="w-full py-3 rounded-lg text-base-custom font-semibold transition-all"
+              >
+                Sign Up
+              </button>
+            </form>
+
+            <div class="mt-6 text-center">
+              <p class="text-sm-custom" style="color: ${textColor}80;">
+                Already have an account? 
+                <button onclick="navigateTo('login')" style="color: ${primaryColor};" class="font-semibold hover:underline">Log In</button>
+              </p>
+              <button onclick="navigateTo('landing')" style="color: ${textColor}80;" class="text-sm-custom mt-3 hover:opacity-80">
+                ← Back to Home
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderDashboard() {
+      const userType = currentUser ? currentUser.user_type : 'household';
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="fade-in">
+          ${renderHeader()}
+          <div class="flex" style="min-height: calc(100% - 73px);">
+            ${renderSidebar(userType)}
+            <main class="flex-1 p-6">
+              <div id="dashboard-content">
+                ${renderDashboardHome(userType)}
+              </div>
+            </main>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderHeader() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+      const siteName = config.site_name || defaultConfig.site_name;
+
+      return `
+        <header style="background-color: ${surfaceColor}; border-bottom: 2px solid ${primaryColor}20;" class="sticky top-0 z-50 shadow-sm">
+          <div class="max-w-full px-6 py-4">
+            <div class="flex justify-between items-center">
+              <div class="flex items-center gap-3">
+                <div style="background: linear-gradient(135deg, ${primaryColor}, ${config.secondary_action_color || defaultConfig.secondary_action_color});" class="w-10 h-10 rounded-lg flex items-center justify-center text-xl">
+                  ♻️
+                </div>
+                <h1 class="text-xl-custom font-bold" style="color: ${textColor};">${siteName}</h1>
+              </div>
+              ${currentUser ? `
+                <div class="flex items-center gap-4">
+                  <span class="text-base-custom" style="color: ${textColor}80;">👋 ${currentUser.name}</span>
+                  <button onclick="handleLogout()" style="color: ${primaryColor};" class="text-sm-custom hover:opacity-80">Logout</button>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        </header>
+      `;
+    }
+
+    function renderSidebar(userType) {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      const menuItems = [
+        { id: 'home', icon: '🏠', label: 'Home Feed' },
+        { id: 'items', icon: '📦', label: userType === 'household' ? 'Browse Items' : 'My Items' },
+        { id: 'requests', icon: '📋', label: userType === 'household' ? 'My Requests' : 'Collection Requests' },
+        { id: 'messages', icon: '💬', label: 'Messages' },
+        { id: 'rates', icon: '💰', label: 'Rate List' },
+        { id: 'profile', icon: '👤', label: 'Profile' }
+      ];
+
+      return `
+        <aside style="background-color: ${surfaceColor}; border-right: 2px solid ${primaryColor}20;" class="w-64 p-6">
+          <nav class="space-y-2">
+            ${menuItems.map(item => `
+              <button 
+                onclick="switchDashboardView('${item.id}')"
+                id="menu-${item.id}"
+                style="color: ${textColor};"
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-base-custom hover:opacity-80 transition-all"
+              >
+                <span class="text-xl">${item.icon}</span>
+                <span>${item.label}</span>
+              </button>
+            `).join('')}
+          </nav>
+        </aside>
+      `;
+    }
+
+    function renderDashboardHome(userType) {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const secondaryColor = config.secondary_action_color || defaultConfig.secondary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="space-y-6">
+          <div>
+            <h2 class="text-xl-custom font-bold mb-2" style="color: ${textColor};">
+              ${userType === 'household' ? '🏠 Household Dashboard' : '🏪 Junkshop Dashboard'}
+            </h2>
+            <p class="text-base-custom" style="color: ${textColor}80;">Welcome back! Here's what's happening today.</p>
+          </div>
+
+          <!-- Stats Grid -->
+          <div class="grid md:grid-cols-3 gap-6">
+            ${renderStatCard('📦', userType === 'household' ? 'Active Requests' : 'Pending Collections', '3', surfaceColor, textColor, primaryColor)}
+            ${renderStatCard('💬', 'Unread Messages', '5', surfaceColor, textColor, primaryColor)}
+            ${renderStatCard('⭐', 'Rating', '4.8', surfaceColor, textColor, secondaryColor)}
+          </div>
+
+          <!-- Recent Activity -->
+          <div style="background-color: ${surfaceColor};" class="rounded-xl p-6 shadow-md">
+            <h3 class="text-lg-custom font-semibold mb-4" style="color: ${textColor};">Recent Activity</h3>
+            <div class="space-y-3">
+              ${renderActivityItem('New message from GreenCycle Junkshop', '2 hours ago', textColor)}
+              ${renderActivityItem(userType === 'household' ? 'Collection request accepted' : 'New collection request received', '5 hours ago', textColor)}
+              ${renderActivityItem('Rate list updated', '1 day ago', textColor)}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderStatCard(icon, label, value, surfaceColor, textColor, accentColor) {
+      return `
+        <div style="background-color: ${surfaceColor}; border-left: 4px solid ${accentColor};" class="rounded-xl p-6 shadow-md">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm-custom mb-1" style="color: ${textColor}80;">${label}</p>
+              <p class="text-xl-custom font-bold" style="color: ${textColor};">${value}</p>
+            </div>
+            <div class="text-4xl">${icon}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderActivityItem(text, time, textColor) {
+      return `
+        <div class="flex items-start gap-3 pb-3 border-b" style="border-color: ${textColor}20;">
+          <div class="text-lg">•</div>
+          <div class="flex-1">
+            <p class="text-base-custom" style="color: ${textColor};">${text}</p>
+            <p class="text-xs-custom" style="color: ${textColor}60;">${time}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderChatbot() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <!-- Chatbot Button -->
+        <button 
+          id="chatbot-button"
+          onclick="toggleChatbot()"
+          style="background: linear-gradient(135deg, ${primaryColor}, ${config.secondary_action_color || defaultConfig.secondary_action_color}); color: ${surfaceColor};"
+          class="fixed bottom-6 right-6 w-16 h-16 rounded-full shadow-2xl flex items-center justify-center text-2xl hover:scale-110 transition-transform z-50"
+        >
+          ${isChatbotOpen ? '✕' : '🤖'}
+        </button>
+
+        <!-- Chatbot Panel -->
+        <div 
+          id="chatbot-panel"
+          style="background-color: ${surfaceColor}; display: ${isChatbotOpen ? 'flex' : 'none'};"
+          class="fixed bottom-24 right-6 w-96 h-[500px] rounded-2xl shadow-2xl flex-col z-50 slide-in-right"
+        >
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, ${primaryColor}, ${config.secondary_action_color || defaultConfig.secondary_action_color}); color: ${surfaceColor};" class="p-4 rounded-t-2xl">
+            <h3 class="text-lg-custom font-bold">Waiz Assistant 🤖</h3>
+            <p class="text-sm-custom opacity-90">Here to help you navigate!</p>
+          </div>
+
+          <!-- Messages -->
+          <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3">
+            ${renderChatMessage('bot', 'Hi! I\'m the Waiz Assistant. How can I help you today?', surfaceColor, textColor, primaryColor)}
+            ${chatMessages.map(msg => renderChatMessage(msg.sender, msg.text, surfaceColor, textColor, primaryColor)).join('')}
+          </div>
+
+          <!-- Input -->
+          <div class="p-4 border-t" style="border-color: ${primaryColor}20;">
+            <form onsubmit="sendChatMessage(event)" class="flex gap-2">
+              <input 
+                type="text" 
+                id="chat-input"
+                required
+                style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                class="flex-1 px-4 py-2 rounded-lg text-base-custom focus:outline-none focus:ring-2"
+                placeholder="Ask me anything..."
+              >
+              <button 
+                type="submit"
+                style="background-color: ${primaryColor}; color: ${surfaceColor};"
+                class="px-4 py-2 rounded-lg text-base-custom font-semibold hover:opacity-90"
+              >
+                Send
+              </button>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderChatMessage(sender, text, surfaceColor, textColor, primaryColor) {
+      const isBot = sender === 'bot';
+      const bgColor = isBot ? `${primaryColor}20` : primaryColor;
+      const color = isBot ? textColor : surfaceColor;
+      const align = isBot ? 'items-start' : 'items-end';
+
+      return `
+        <div class="flex flex-col ${align}">
+          <div style="background-color: ${bgColor}; color: ${color};" class="chat-bubble px-4 py-2 rounded-lg text-base-custom">
+            ${text}
+          </div>
+        </div>
+      `;
+    }
+
+    // Navigation Functions
+    function navigateTo(view) {
+      currentView = view;
+      render();
+    }
+
+    function switchDashboardView(viewId) {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      // Update active menu item
+      document.querySelectorAll('[id^="menu-"]').forEach(btn => {
+        btn.style.backgroundColor = 'transparent';
+      });
+      const activeBtn = document.getElementById(`menu-${viewId}`);
+      if (activeBtn) {
+        activeBtn.style.backgroundColor = `${primaryColor}20`;
+      }
+
+      const content = document.getElementById('dashboard-content');
+      const userType = currentUser ? currentUser.user_type : 'household';
+
+      switch(viewId) {
+        case 'home':
+          content.innerHTML = renderDashboardHome(userType);
+          break;
+        case 'items':
+          content.innerHTML = renderItemsView(userType);
+          break;
+        case 'requests':
+          content.innerHTML = renderRequestsView(userType);
+          break;
+        case 'messages':
+          content.innerHTML = renderMessagesView();
+          break;
+        case 'rates':
+          content.innerHTML = renderRatesView();
+          break;
+        case 'profile':
+          content.innerHTML = renderProfileView();
+          break;
+      }
+      applyFontSizes();
+    }
+
+    function renderItemsView(userType) {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="space-y-6">
+          <div class="flex justify-between items-center">
+            <h2 class="text-xl-custom font-bold" style="color: ${textColor};">
+              ${userType === 'household' ? 'Browse Items' : 'My Items for Sale'}
+            </h2>
+            ${userType === 'junkshop' ? `
+              <button style="background-color: ${primaryColor}; color: ${surfaceColor};" class="px-6 py-2 rounded-lg text-base-custom font-semibold hover:opacity-90">
+                + Add Item
+              </button>
+            ` : ''}
+          </div>
+
+          <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            ${mockItems.map(item => `
+              <div style="background-color: ${surfaceColor}; border: 2px solid ${primaryColor}20;" class="rounded-xl p-6 hover-lift shadow-md">
+                <div class="text-6xl mb-4 text-center">${item.image}</div>
+                <h3 class="text-lg-custom font-semibold mb-2" style="color: ${textColor};">${item.title}</h3>
+                <p class="text-base-custom mb-3" style="color: ${textColor}80;">Seller: ${item.seller}</p>
+                <div class="flex justify-between items-center">
+                  <span class="text-xl-custom font-bold" style="color: ${primaryColor};">${item.price}</span>
+                  <button style="background-color: ${primaryColor}; color: ${surfaceColor};" class="px-4 py-2 rounded-lg text-sm-custom font-semibold hover:opacity-90">
+                    ${userType === 'household' ? 'Contact' : 'Edit'}
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderRequestsView(userType) {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="space-y-6">
+          <div class="flex justify-between items-center">
+            <h2 class="text-xl-custom font-bold" style="color: ${textColor};">
+              ${userType === 'household' ? 'My Requests' : 'Collection Requests'}
+            </h2>
+            ${userType === 'household' ? `
+              <button style="background-color: ${primaryColor}; color: ${surfaceColor};" class="px-6 py-2 rounded-lg text-base-custom font-semibold hover:opacity-90">
+                + New Request
+              </button>
+            ` : ''}
+          </div>
+
+          <div class="space-y-4">
+            ${mockRequests.map(request => `
+              <div style="background-color: ${surfaceColor}; border-left: 4px solid ${request.status === 'Completed' ? config.secondary_action_color || defaultConfig.secondary_action_color : primaryColor};" class="rounded-xl p-6 shadow-md">
+                <div class="flex justify-between items-start mb-3">
+                  <div>
+                    <h3 class="text-lg-custom font-semibold mb-1" style="color: ${textColor};">${request.type} Request</h3>
+                    <p class="text-base-custom" style="color: ${textColor}80;">${request.items}</p>
+                  </div>
+                  <span style="background-color: ${request.status === 'Completed' ? config.secondary_action_color || defaultConfig.secondary_action_color : primaryColor}20; color: ${request.status === 'Completed' ? config.secondary_action_color || defaultConfig.secondary_action_color : primaryColor};" class="px-3 py-1 rounded-full text-sm-custom font-medium">
+                    ${request.status}
+                  </span>
+                </div>
+                <div class="flex gap-4 text-sm-custom" style="color: ${textColor}60;">
+                  <span>📅 ${request.date}</span>
+                  <span>📍 ${request.address}</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderMessagesView() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="space-y-6">
+          <h2 class="text-xl-custom font-bold" style="color: ${textColor};">Messages</h2>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div style="background-color: ${surfaceColor};" class="rounded-xl shadow-md">
+              <div class="p-4 border-b" style="border-color: ${primaryColor}20;">
+                <input 
+                  type="text"
+                  style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                  class="w-full px-4 py-2 rounded-lg text-base-custom"
+                  placeholder="Search messages..."
+                >
+              </div>
+              <div class="divide-y" style="border-color: ${primaryColor}20;">
+                ${['GreenCycle Junkshop', 'EcoHub Baguio', 'RecyclePoint'].map((name, i) => `
+                  <button class="w-full p-4 text-left hover:opacity-80 transition-opacity" style="background-color: ${i === 0 ? primaryColor + '10' : 'transparent'};">
+                    <div class="flex items-center gap-3 mb-2">
+                      <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg" style="background-color: ${primaryColor}20;">
+                        🏪
+                      </div>
+                      <div class="flex-1">
+                        <p class="text-base-custom font-semibold" style="color: ${textColor};">${name}</p>
+                        <p class="text-sm-custom truncate" style="color: ${textColor}60;">Thank you for your inquiry...</p>
+                      </div>
+                    </div>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+
+            <div style="background-color: ${surfaceColor};" class="md:col-span-2 rounded-xl shadow-md flex flex-col" style="height: 600px;">
+              <div class="p-4 border-b" style="border-color: ${primaryColor}20;">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg" style="background-color: ${primaryColor}20;">
+                    🏪
+                  </div>
+                  <div>
+                    <p class="text-base-custom font-semibold" style="color: ${textColor};">GreenCycle Junkshop</p>
+                    <p class="text-xs-custom" style="color: ${textColor}60;">Active now</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex-1 overflow-y-auto p-4 space-y-3">
+                <div class="flex items-start gap-2">
+                  <div style="background-color: ${primaryColor}20; color: ${textColor};" class="px-4 py-2 rounded-lg text-base-custom max-w-[70%]">
+                    Hello! I'm interested in selling some plastic bottles.
+                  </div>
+                </div>
+                <div class="flex items-end gap-2 justify-end">
+                  <div style="background-color: ${primaryColor}; color: ${surfaceColor};" class="px-4 py-2 rounded-lg text-base-custom max-w-[70%]">
+                    Great! We're currently buying PET bottles at ₱3 per piece. How many do you have?
+                  </div>
+                </div>
+              </div>
+
+              <div class="p-4 border-t" style="border-color: ${primaryColor}20;">
+                <form class="flex gap-2">
+                  <input 
+                    type="text"
+                    style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                    class="flex-1 px-4 py-2 rounded-lg text-base-custom"
+                    placeholder="Type a message..."
+                  >
+                  <button type="submit" style="background-color: ${primaryColor}; color: ${surfaceColor};" class="px-6 py-2 rounded-lg text-base-custom font-semibold hover:opacity-90">
+                    Send
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderRatesView() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="space-y-6">
+          <div>
+            <h2 class="text-xl-custom font-bold mb-2" style="color: ${textColor};">Current Rate List</h2>
+            <p class="text-base-custom" style="color: ${textColor}80;">Standard rates for recyclable materials in Baguio</p>
+          </div>
+
+          <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            ${rateList.map(rate => `
+              <div style="background-color: ${surfaceColor}; border: 2px solid ${primaryColor}20;" class="rounded-xl p-6 hover-lift shadow-md">
+                <div class="text-5xl mb-4 text-center">${rate.icon}</div>
+                <h3 class="text-lg-custom font-semibold mb-2 text-center" style="color: ${textColor};">${rate.material}</h3>
+                <p class="text-xl-custom font-bold text-center" style="color: ${primaryColor};">${rate.price}</p>
+              </div>
+            `).join('')}
+          </div>
+
+          <div style="background-color: ${surfaceColor};" class="rounded-xl p-6 shadow-md">
+            <p class="text-sm-custom" style="color: ${textColor}80;">
+              ℹ️ Rates may vary by junkshop and material condition. Contact individual junkshops for specific rates.
+            </p>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderProfileView() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="space-y-6">
+          <h2 class="text-xl-custom font-bold" style="color: ${textColor};">Profile Settings</h2>
+
+          <div style="background-color: ${surfaceColor};" class="rounded-xl p-8 shadow-md">
+            <div class="flex items-center gap-6 mb-8">
+              <div class="w-24 h-24 rounded-full flex items-center justify-center text-5xl" style="background: linear-gradient(135deg, ${primaryColor}, ${config.secondary_action_color || defaultConfig.secondary_action_color});">
+                ${currentUser && currentUser.user_type === 'junkshop' ? '🏪' : '🏠'}
+              </div>
+              <div>
+                <h3 class="text-xl-custom font-bold mb-1" style="color: ${textColor};">${currentUser ? currentUser.name : 'User Name'}</h3>
+                <p class="text-base-custom mb-2" style="color: ${textColor}80;">${currentUser ? currentUser.user_type.charAt(0).toUpperCase() + currentUser.user_type.slice(1) : 'User Type'}</p>
+                <button style="color: ${primaryColor};" class="text-sm-custom font-semibold hover:underline">Edit Profile</button>
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="text-sm-custom font-medium block mb-2" style="color: ${textColor}80;">Email</label>
+                <p class="text-base-custom" style="color: ${textColor};">${currentUser ? currentUser.email : 'user@example.com'}</p>
+              </div>
+              <div>
+                <label class="text-sm-custom font-medium block mb-2" style="color: ${textColor}80;">Phone</label>
+                <p class="text-base-custom" style="color: ${textColor};">${currentUser ? currentUser.phone : '+63 XXX XXX XXXX'}</p>
+              </div>
+              <div>
+                <label class="text-sm-custom font-medium block mb-2" style="color: ${textColor}80;">Address</label>
+                <p class="text-base-custom" style="color: ${textColor};">📍 ${currentUser ? currentUser.address : 'Baguio City'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Event Handlers
+    let selectedUserType = null;
+
+    function selectUserType(type) {
+      selectedUserType = type;
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      
+      document.getElementById('type-household').style.backgroundColor = type === 'household' ? primaryColor : config.background_color || defaultConfig.background_color;
+      document.getElementById('type-household').style.color = type === 'household' ? surfaceColor : config.text_color || defaultConfig.text_color;
+      
+      document.getElementById('type-junkshop').style.backgroundColor = type === 'junkshop' ? primaryColor : config.background_color || defaultConfig.background_color;
+      document.getElementById('type-junkshop').style.color = type === 'junkshop' ? surfaceColor : config.text_color || defaultConfig.text_color;
+      
+      const addressLabel = document.getElementById('address-label');
+      addressLabel.textContent = type === 'junkshop' ? 'Junkshop Location' : 'Pickup Address';
+      
+      const signupButton = document.getElementById('signup-button');
+      signupButton.disabled = false;
+      signupButton.style.backgroundColor = primaryColor;
+      signupButton.style.cursor = 'pointer';
+    }
+
+    async function handleSignup(event) {
+      event.preventDefault();
+      
+      if (!selectedUserType) {
+        return;
+      }
+
+      const button = event.target.querySelector('button[type="submit"]');
+      button.disabled = true;
+      button.textContent = 'Creating account...';
+
+      const userData = {
+        id: Date.now().toString(),
+        user_type: selectedUserType,
+        name: document.getElementById('signup-name').value,
+        email: document.getElementById('signup-email').value,
+        phone: document.getElementById('signup-phone').value,
+        address: document.getElementById('signup-address').value,
+        created_at: new Date().toISOString()
+      };
+
+      const result = await window.dataSdk.create(userData);
+      
+      if (result.isOk) {
+        currentUser = userData;
+        currentView = 'dashboard';
+        render();
+      } else {
+        button.disabled = false;
+        button.textContent = 'Sign Up';
+        
+        const errorDiv = document.createElement('div');
+        errorDiv.style.backgroundColor = '#fee';
+        errorDiv.style.color = '#c00';
+        errorDiv.style.padding = '12px';
+        errorDiv.style.borderRadius = '8px';
+        errorDiv.style.marginTop = '16px';
+        errorDiv.className = 'text-sm-custom';
+        errorDiv.textContent = 'Failed to create account. Please try again.';
+        event.target.appendChild(errorDiv);
+        
+        setTimeout(() => errorDiv.remove(), 5000);
+      }
+    }
+
+    function handleLogin(event) {
+      event.preventDefault();
+      
+      // Demo login - in production this would validate credentials
+      currentUser = {
+        id: '1',
+        user_type: 'household',
+        name: 'Demo User',
+        email: document.getElementById('login-email').value,
+        phone: '+63 XXX XXX XXXX',
+        address: 'Session Road, Baguio City'
+      };
+      
+      currentView = 'dashboard';
+      render();
+    }
+
+    function handleLogout() {
+      currentUser = null;
+      currentView = 'landing';
+      render();
+    }
+
+    function toggleChatbot() {
+      isChatbotOpen = !isChatbotOpen;
+      const panel = document.getElementById('chatbot-panel');
+      const button = document.getElementById('chatbot-button');
+      
+      if (panel && button) {
+        panel.style.display = isChatbotOpen ? 'flex' : 'none';
+        button.textContent = isChatbotOpen ? '✕' : '🤖';
+      }
+    }
+
+    function sendChatMessage(event) {
+      event.preventDefault();
+      
+      const input = document.getElementById('chat-input');
+      const message = input.value.trim();
+      
+      if (!message) return;
+      
+      chatMessages.push({ sender: 'user', text: message });
+      input.value = '';
+      
+      // Simulate bot response
+      setTimeout(() => {
+        const botResponses = {
+          'how': 'You can navigate through different sections using the sidebar menu. Each section has specific features for managing your recyclables!',
+          'rate': 'Current rates vary by material type. Check the Rate List section in the dashboard for detailed pricing.',
+          'message': 'You can send messages to junkshops through the Messages tab. Simply select a junkshop and start chatting!',
+          'request': 'To create a collection request, go to the Requests section and click "New Request". Fill in your details and submit!',
+          'default': 'I can help you with navigation, rates, messaging, and collection requests. What would you like to know more about?'
+        };
+        
+        let response = botResponses.default;
+        for (let key in botResponses) {
+          if (message.toLowerCase().includes(key)) {
+            response = botResponses[key];
+            break;
+          }
+        }
+        
+        chatMessages.push({ sender: 'bot', text: response });
+        render();
+      }, 1000);
+      
+      render();
+    }
+
+    // Initialize
+    window.addEventListener('DOMContentLoaded', initializeApp);
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a1541876088f325',t:'MTc2MzYxMzQ4Ny4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
+<!doctype doctype>
+<html lang="en">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waiz - Eco Marketplace</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    
+    * {
+      box-sizing: border-box;
+    }
+
+    .fade-in {
+      animation: fadeIn 0.3s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .slide-in-right {
+      animation: slideInRight 0.3s ease-out;
+    }
+
+    @keyframes slideInRight {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+
+    .chat-bubble {
+      max-width: 80%;
+      word-wrap: break-word;
+    }
+
+    .scroll-smooth {
+      scroll-behavior: smooth;
+    }
+
+    .hover-lift {
+      transition: transform 0.2s ease;
+    }
+
+    .hover-lift:hover {
+      transform: translateY(-2px);
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+ </head>
+ <body class="scroll-smooth">
+  <div id="app"></div>
+  <script>
+    const defaultConfig = {
+      background_color: "#f0f9f4",
+      surface_color: "#ffffff",
+      text_color: "#1e3a2a",
+      primary_action_color: "#2d6a4f",
+      secondary_action_color: "#f4a261",
+      font_family: "Inter",
+      font_size: 16,
+      site_name: "Waiz",
+      tagline: "Eco Marketplace for Baguio",
+      hero_title: "Connect. Recycle. Sustain.",
+      hero_subtitle: "Bridging households and junkshops in Baguio for a greener tomorrow"
+    };
+
+    let config = { ...defaultConfig };
+    let currentUser = null;
+    let currentView = 'landing';
+    let chatMessages = [];
+    let isChatbotOpen = false;
+
+    // Data SDK Handler
+    const dataHandler = {
+      onDataChanged(data) {
+        // Store users data for reference
+        window.usersData = data;
+      }
+    };
+
+    // Mock data for demonstration
+    const mockItems = [
+      { id: 1, title: "Plastic Bottles (50pcs)", price: "₱150", seller: "GreenCycle Junkshop", image: "🍾", category: "Plastic" },
+      { id: 2, title: "Newspapers Bundle", price: "₱80", seller: "EcoHub Baguio", image: "📰", category: "Paper" },
+      { id: 3, title: "Aluminum Cans (30pcs)", price: "₱120", seller: "RecyclePoint", image: "🥫", category: "Metal" },
+      { id: 4, title: "Glass Bottles", price: "₱100", seller: "GreenCycle Junkshop", image: "🍷", category: "Glass" }
+    ];
+
+    const mockRequests = [
+      { id: 1, type: "Collection", items: "Mixed recyclables", status: "Pending", date: "2024-01-15", address: "Session Road, Baguio" },
+      { id: 2, type: "Purchase", items: "Plastic bottles", status: "Completed", date: "2024-01-10", address: "Burnham Park Area" }
+    ];
+
+    const rateList = [
+      { material: "Plastic Bottles (PET)", price: "₱3 per piece", icon: "🍾" },
+      { material: "Newspapers", price: "₱8 per kilo", icon: "📰" },
+      { material: "Aluminum Cans", price: "₱4 per piece", icon: "🥫" },
+      { material: "Glass Bottles", price: "₱2 per piece", icon: "🍷" },
+      { material: "Cardboard", price: "₱6 per kilo", icon: "📦" },
+      { material: "Copper Wire", price: "₱350 per kilo", icon: "🔌" }
+    ];
+
+    async function initializeApp() {
+      const initResult = await window.dataSdk.init(dataHandler);
+      if (!initResult.isOk) {
+        console.error("Failed to initialize data SDK");
+      }
+
+      if (window.elementSdk) {
+        window.elementSdk.init({
+          defaultConfig,
+          onConfigChange: async (newConfig) => {
+            config = newConfig;
+            render();
+          },
+          mapToCapabilities: (cfg) => ({
+            recolorables: [
+              {
+                get: () => cfg.background_color || defaultConfig.background_color,
+                set: (value) => {
+                  cfg.background_color = value;
+                  window.elementSdk.setConfig({ background_color: value });
+                }
+              },
+              {
+                get: () => cfg.surface_color || defaultConfig.surface_color,
+                set: (value) => {
+                  cfg.surface_color = value;
+                  window.elementSdk.setConfig({ surface_color: value });
+                }
+              },
+              {
+                get: () => cfg.text_color || defaultConfig.text_color,
+                set: (value) => {
+                  cfg.text_color = value;
+                  window.elementSdk.setConfig({ text_color: value });
+                }
+              },
+              {
+                get: () => cfg.primary_action_color || defaultConfig.primary_action_color,
+                set: (value) => {
+                  cfg.primary_action_color = value;
+                  window.elementSdk.setConfig({ primary_action_color: value });
+                }
+              },
+              {
+                get: () => cfg.secondary_action_color || defaultConfig.secondary_action_color,
+                set: (value) => {
+                  cfg.secondary_action_color = value;
+                  window.elementSdk.setConfig({ secondary_action_color: value });
+                }
+              }
+            ],
+            borderables: [],
+            fontEditable: {
+              get: () => cfg.font_family || defaultConfig.font_family,
+              set: (value) => {
+                cfg.font_family = value;
+                window.elementSdk.setConfig({ font_family: value });
+              }
+            },
+            fontSizeable: {
+              get: () => cfg.font_size || defaultConfig.font_size,
+              set: (value) => {
+                cfg.font_size = value;
+                window.elementSdk.setConfig({ font_size: value });
+              }
+            }
+          }),
+          mapToEditPanelValues: (cfg) => new Map([
+            ["site_name", cfg.site_name || defaultConfig.site_name],
+            ["tagline", cfg.tagline || defaultConfig.tagline],
+            ["hero_title", cfg.hero_title || defaultConfig.hero_title],
+            ["hero_subtitle", cfg.hero_subtitle || defaultConfig.hero_subtitle]
+          ])
+        });
+        
+        if (window.elementSdk.config) {
+          config = window.elementSdk.config;
+        }
+      }
+
+      render();
+    }
+
+    function render() {
+      const app = document.getElementById('app');
+      const customFont = config.font_family || defaultConfig.font_family;
+      const baseSize = config.font_size || defaultConfig.font_size;
+      const baseFontStack = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
+      app.style.fontFamily = `${customFont}, ${baseFontStack}`;
+      app.style.backgroundColor = config.background_color || defaultConfig.background_color;
+      app.style.color = config.text_color || defaultConfig.text_color;
+      app.style.minHeight = '100%';
+
+      let content = '';
+
+      if (currentView === 'landing') {
+        content = renderLanding();
+      } else if (currentView === 'about') {
+        content = renderAbout();
+      } else if (currentView === 'login') {
+        content = renderLogin();
+      } else if (currentView === 'signup') {
+        content = renderSignup();
+      } else if (currentView === 'dashboard') {
+        content = renderDashboard();
+      }
+
+      app.innerHTML = content + renderChatbot();
+      applyFontSizes();
+    }
+
+    function applyFontSizes() {
+      const baseSize = config.font_size || defaultConfig.font_size;
+      
+      document.querySelectorAll('.text-hero').forEach(el => el.style.fontSize = `${baseSize * 2.5}px`);
+      document.querySelectorAll('.text-xl-custom').forEach(el => el.style.fontSize = `${baseSize * 1.5}px`);
+      document.querySelectorAll('.text-lg-custom').forEach(el => el.style.fontSize = `${baseSize * 1.25}px`);
+      document.querySelectorAll('.text-base-custom').forEach(el => el.style.fontSize = `${baseSize}px`);
+      document.querySelectorAll('.text-sm-custom').forEach(el => el.style.fontSize = `${baseSize * 0.875}px`);
+      document.querySelectorAll('.text-xs-custom').forEach(el => el.style.fontSize = `${baseSize * 0.75}px`);
+    }
+
+    function renderLanding() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const secondaryColor = config.secondary_action_color || defaultConfig.secondary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+      const siteName = config.site_name || defaultConfig.site_name;
+      const tagline = config.tagline || defaultConfig.tagline;
+      const heroTitle = config.hero_title || defaultConfig.hero_title;
+      const heroSubtitle = config.hero_subtitle || defaultConfig.hero_subtitle;
+
+      return `
+        <div class="fade-in">
+          <!-- Header -->
+          <header style="background-color: ${surfaceColor}; border-bottom: 2px solid ${primaryColor}20;" class="sticky top-0 z-50 shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+              <div class="flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                  <div style="background: linear-gradient(135deg, ${primaryColor}, ${secondaryColor});" class="w-10 h-10 rounded-lg flex items-center justify-center text-xl">
+                    ♻️
+                  </div>
+                  <div>
+                    <h1 class="text-xl-custom font-bold" style="color: ${textColor};">${siteName}</h1>
+                    <p class="text-xs-custom" style="color: ${textColor}80;">${tagline}</p>
+                  </div>
+                </div>
+                <nav class="flex gap-4">
+                  <button onclick="navigateTo('about')" style="color: ${textColor};" class="text-base-custom hover:opacity-80 transition-opacity">About</button>
+                  <button onclick="navigateTo('login')" style="background-color: ${primaryColor}; color: ${surfaceColor};" class="px-6 py-2 rounded-lg text-base-custom font-semibold hover:opacity-90 transition-opacity">Login</button>
+                </nav>
+              </div>
+            </div>
+          </header>
+
+          <!-- Hero Section -->
+          <section class="py-20 px-4">
+            <div class="max-w-6xl mx-auto text-center">
+              <h2 class="text-hero font-bold mb-6" style="color: ${textColor};">${heroTitle}</h2>
+              <p class="text-lg-custom mb-10" style="color: ${textColor}90; max-width: 600px; margin-left: auto; margin-right: auto;">
+                ${heroSubtitle}
+              </p>
+              <div class="flex gap-4 justify-center flex-wrap">
+                <button onclick="navigateTo('signup')" style="background-color: ${primaryColor}; color: ${surfaceColor};" class="px-8 py-4 rounded-lg text-lg-custom font-semibold hover:opacity-90 transition-opacity hover-lift shadow-lg">
+                  Get Started
+                </button>
+                <button onclick="navigateTo('about')" style="background-color: ${surfaceColor}; color: ${primaryColor}; border: 2px solid ${primaryColor};" class="px-8 py-4 rounded-lg text-lg-custom font-semibold hover:opacity-90 transition-opacity hover-lift">
+                  Learn More
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Features Grid -->
+          <section class="py-16 px-4">
+            <div class="max-w-6xl mx-auto">
+              <h3 class="text-xl-custom font-bold text-center mb-12" style="color: ${textColor};">How Waiz Works</h3>
+              <div class="grid md:grid-cols-3 gap-8">
+                ${renderFeatureCard('🏠', 'For Households', 'List your recyclables and connect with nearby junkshops for easy pickup', surfaceColor, textColor, primaryColor)}
+                ${renderFeatureCard('🏪', 'For Junkshops', 'Discover recyclable materials from households in Baguio and manage collections', surfaceColor, textColor, primaryColor)}
+                ${renderFeatureCard('💬', 'Direct Communication', 'Chat directly with households or junkshops to arrange collections and sales', surfaceColor, textColor, primaryColor)}
+              </div>
+            </div>
+          </section>
+        </div>
+      `;
+    }
+
+    function renderFeatureCard(icon, title, description, surfaceColor, textColor, accentColor) {
+      return `
+        <div style="background-color: ${surfaceColor}; border: 2px solid ${accentColor}20;" class="rounded-xl p-6 hover-lift shadow-md transition-all">
+          <div class="text-5xl mb-4">${icon}</div>
+          <h4 class="text-lg-custom font-semibold mb-3" style="color: ${textColor};">${title}</h4>
+          <p class="text-base-custom" style="color: ${textColor}80;">${description}</p>
+        </div>
+      `;
+    }
+
+    function renderAbout() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+      const siteName = config.site_name || defaultConfig.site_name;
+
+      return `
+        <div class="fade-in">
+          ${renderHeader()}
+          <div class="max-w-4xl mx-auto px-4 py-12">
+            <button onclick="navigateTo('landing')" style="color: ${primaryColor};" class="mb-6 flex items-center gap-2 text-base-custom hover:opacity-80">
+              ← Back
+            </button>
+            
+            <h2 class="text-xl-custom font-bold mb-6" style="color: ${textColor};">About ${siteName}</h2>
+            
+            <div style="background-color: ${surfaceColor};" class="rounded-xl p-8 shadow-lg mb-8">
+              <p class="text-base-custom mb-4" style="color: ${textColor};">
+                ${siteName} is an innovative eco-marketplace designed specifically for Baguio City. We bridge the gap between households and junkshops, making recycling easier and more accessible for everyone.
+              </p>
+              <p class="text-base-custom mb-4" style="color: ${textColor};">
+                Our platform enables households to connect with local junkshops for the collection and sale of recyclable materials. Whether you're a household looking to responsibly dispose of recyclables or a junkshop seeking new sources of materials, ${siteName} makes the process seamless.
+              </p>
+              
+              <h3 class="text-lg-custom font-semibold mt-8 mb-4" style="color: ${textColor};">Key Features</h3>
+              <ul class="space-y-3">
+                ${renderListItem('📍 Location-based matching with junkshops in Baguio', textColor)}
+                ${renderListItem('💰 Transparent rate lists for all recyclable materials', textColor)}
+                ${renderListItem('📱 Direct messaging between households and junkshops', textColor)}
+                ${renderListItem('🗓️ Easy collection request scheduling', textColor)}
+                ${renderListItem('⭐ Rating system for trust and quality', textColor)}
+              </ul>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderListItem(text, textColor) {
+      return `<li class="text-base-custom flex items-start gap-2" style="color: ${textColor}80;"><span>${text}</span></li>`;
+    }
+
+    function renderLogin() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="fade-in min-h-screen flex items-center justify-center px-4 py-12">
+          <div style="background-color: ${surfaceColor};" class="rounded-2xl shadow-2xl p-8 w-full max-w-md">
+            <div class="text-center mb-8">
+              <div class="text-5xl mb-4">♻️</div>
+              <h2 class="text-xl-custom font-bold mb-2" style="color: ${textColor};">Welcome Back</h2>
+              <p class="text-base-custom" style="color: ${textColor}80;">Log in to your Waiz account</p>
+            </div>
+
+            <form onsubmit="handleLogin(event)" class="space-y-4">
+              <div>
+                <label class="text-sm-custom font-medium block mb-2" style="color: ${textColor};">Email or Phone</label>
+                <input 
+                  type="text" 
+                  id="login-email"
+                  required
+                  style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                  class="w-full px-4 py-3 rounded-lg text-base-custom focus:outline-none focus:ring-2"
+                  placeholder="Enter your email or phone"
+                >
+              </div>
+
+              <div>
+                <label class="text-sm-custom font-medium block mb-2" style="color: ${textColor};">Password</label>
+                <input 
+                  type="password" 
+                  id="login-password"
+                  required
+                  style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                  class="w-full px-4 py-3 rounded-lg text-base-custom focus:outline-none focus:ring-2"
+                  placeholder="Enter your password"
+                >
+              </div>
+
+              <button 
+                type="submit"
+                style="background-color: ${primaryColor}; color: ${surfaceColor};"
+                class="w-full py-3 rounded-lg text-base-custom font-semibold hover:opacity-90 transition-opacity"
+              >
+                Log In
+              </button>
+            </form>
+
+            <div class="mt-6 text-center">
+              <p class="text-sm-custom" style="color: ${textColor}80;">
+                Don't have an account? 
+                <button onclick="navigateTo('signup')" style="color: ${primaryColor};" class="font-semibold hover:underline">Sign Up</button>
+              </p>
+              <button onclick="navigateTo('landing')" style="color: ${textColor}80;" class="text-sm-custom mt-3 hover:opacity-80">
+                ← Back to Home
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderSignup() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const secondaryColor = config.secondary_action_color || defaultConfig.secondary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="fade-in min-h-screen flex items-center justify-center px-4 py-12">
+          <div style="background-color: ${surfaceColor};" class="rounded-2xl shadow-2xl p-8 w-full max-w-md">
+            <div class="text-center mb-8">
+              <div class="text-5xl mb-4">♻️</div>
+              <h2 class="text-xl-custom font-bold mb-2" style="color: ${textColor};">Join Waiz</h2>
+              <p class="text-base-custom" style="color: ${textColor}80;">Create your account</p>
+            </div>
+
+            <form onsubmit="handleSignup(event)" class="space-y-4">
+              <div>
+                <label class="text-sm-custom font-medium block mb-2" style="color: ${textColor};">I am a:</label>
+                <div class="grid grid-cols-2 gap-3">
+                  <button 
+                    type="button"
+                    onclick="selectUserType('household')"
+                    id="type-household"
+                    style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                    class="py-3 rounded-lg text-base-custom font-medium hover:opacity-80 transition-all"
+                  >
+                    🏠 Household
+                  </button>
+                  <button 
+                    type="button"
+                    onclick="selectUserType('junkshop')"
+                    id="type-junkshop"
+                    style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                    class="py-3 rounded-lg text-base-custom font-medium hover:opacity-80 transition-all"
+                  >
+                    🏪 Junkshop
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label for="signup-name" class="text-sm-custom font-medium block mb-2" style="color: ${textColor};">Full Name</label>
+                <input 
+                  type="text" 
+                  id="signup-name"
+                  required
+                  style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                  class="w-full px-4 py-3 rounded-lg text-base-custom focus:outline-none focus:ring-2"
+                  placeholder="Enter your name"
+                >
+              </div>
+
+              <div>
+                <label for="signup-email" class="text-sm-custom font-medium block mb-2" style="color: ${textColor};">Email</label>
+                <input 
+                  type="email" 
+                  id="signup-email"
+                  required
+                  style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                  class="w-full px-4 py-3 rounded-lg text-base-custom focus:outline-none focus:ring-2"
+                  placeholder="your@email.com"
+                >
+              </div>
+
+              <div>
+                <label for="signup-phone" class="text-sm-custom font-medium block mb-2" style="color: ${textColor};">Phone Number</label>
+                <input 
+                  type="tel" 
+                  id="signup-phone"
+                  required
+                  style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                  class="w-full px-4 py-3 rounded-lg text-base-custom focus:outline-none focus:ring-2"
+                  placeholder="+63 XXX XXX XXXX"
+                >
+              </div>
+
+              <div>
+                <label for="signup-address" class="text-sm-custom font-medium block mb-2" style="color: ${textColor};">
+                  <span id="address-label">Address in Baguio</span>
+                </label>
+                <input 
+                  type="text" 
+                  id="signup-address"
+                  required
+                  style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                  class="w-full px-4 py-3 rounded-lg text-base-custom focus:outline-none focus:ring-2"
+                  placeholder="Street, Barangay, Baguio City"
+                >
+                <p class="text-xs-custom mt-1" style="color: ${textColor}60;">📍 Used for location-based matching</p>
+              </div>
+
+              <div>
+                <label for="signup-password" class="text-sm-custom font-medium block mb-2" style="color: ${textColor};">Password</label>
+                <input 
+                  type="password" 
+                  id="signup-password"
+                  required
+                  style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                  class="w-full px-4 py-3 rounded-lg text-base-custom focus:outline-none focus:ring-2"
+                  placeholder="Create a password"
+                >
+              </div>
+
+              <button 
+                type="submit"
+                id="signup-button"
+                disabled
+                style="background-color: ${primaryColor}60; color: ${surfaceColor};"
+                class="w-full py-3 rounded-lg text-base-custom font-semibold transition-all"
+              >
+                Sign Up
+              </button>
+            </form>
+
+            <div class="mt-6 text-center">
+              <p class="text-sm-custom" style="color: ${textColor}80;">
+                Already have an account? 
+                <button onclick="navigateTo('login')" style="color: ${primaryColor};" class="font-semibold hover:underline">Log In</button>
+              </p>
+              <button onclick="navigateTo('landing')" style="color: ${textColor}80;" class="text-sm-custom mt-3 hover:opacity-80">
+                ← Back to Home
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderDashboard() {
+      const userType = currentUser ? currentUser.user_type : 'household';
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="fade-in">
+          ${renderHeader()}
+          <div class="flex" style="min-height: calc(100% - 73px);">
+            ${renderSidebar(userType)}
+            <main class="flex-1 p-6">
+              <div id="dashboard-content">
+                ${renderDashboardHome(userType)}
+              </div>
+            </main>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderHeader() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+      const siteName = config.site_name || defaultConfig.site_name;
+
+      return `
+        <header style="background-color: ${surfaceColor}; border-bottom: 2px solid ${primaryColor}20;" class="sticky top-0 z-50 shadow-sm">
+          <div class="max-w-full px-6 py-4">
+            <div class="flex justify-between items-center">
+              <div class="flex items-center gap-3">
+                <div style="background: linear-gradient(135deg, ${primaryColor}, ${config.secondary_action_color || defaultConfig.secondary_action_color});" class="w-10 h-10 rounded-lg flex items-center justify-center text-xl">
+                  ♻️
+                </div>
+                <h1 class="text-xl-custom font-bold" style="color: ${textColor};">${siteName}</h1>
+              </div>
+              ${currentUser ? `
+                <div class="flex items-center gap-4">
+                  <span class="text-base-custom" style="color: ${textColor}80;">👋 ${currentUser.name}</span>
+                  <button onclick="handleLogout()" style="color: ${primaryColor};" class="text-sm-custom hover:opacity-80">Logout</button>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        </header>
+      `;
+    }
+
+    function renderSidebar(userType) {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      const menuItems = [
+        { id: 'home', icon: '🏠', label: 'Home Feed' },
+        { id: 'items', icon: '📦', label: userType === 'household' ? 'Browse Items' : 'My Items' },
+        { id: 'requests', icon: '📋', label: userType === 'household' ? 'My Requests' : 'Collection Requests' },
+        { id: 'messages', icon: '💬', label: 'Messages' },
+        { id: 'rates', icon: '💰', label: 'Rate List' },
+        { id: 'profile', icon: '👤', label: 'Profile' }
+      ];
+
+      return `
+        <aside style="background-color: ${surfaceColor}; border-right: 2px solid ${primaryColor}20;" class="w-64 p-6">
+          <nav class="space-y-2">
+            ${menuItems.map(item => `
+              <button 
+                onclick="switchDashboardView('${item.id}')"
+                id="menu-${item.id}"
+                style="color: ${textColor};"
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-base-custom hover:opacity-80 transition-all"
+              >
+                <span class="text-xl">${item.icon}</span>
+                <span>${item.label}</span>
+              </button>
+            `).join('')}
+          </nav>
+        </aside>
+      `;
+    }
+
+    function renderDashboardHome(userType) {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const secondaryColor = config.secondary_action_color || defaultConfig.secondary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="space-y-6">
+          <div>
+            <h2 class="text-xl-custom font-bold mb-2" style="color: ${textColor};">
+              ${userType === 'household' ? '🏠 Household Dashboard' : '🏪 Junkshop Dashboard'}
+            </h2>
+            <p class="text-base-custom" style="color: ${textColor}80;">Welcome back! Here's what's happening today.</p>
+          </div>
+
+          <!-- Stats Grid -->
+          <div class="grid md:grid-cols-3 gap-6">
+            ${renderStatCard('📦', userType === 'household' ? 'Active Requests' : 'Pending Collections', '3', surfaceColor, textColor, primaryColor)}
+            ${renderStatCard('💬', 'Unread Messages', '5', surfaceColor, textColor, primaryColor)}
+            ${renderStatCard('⭐', 'Rating', '4.8', surfaceColor, textColor, secondaryColor)}
+          </div>
+
+          <!-- Recent Activity -->
+          <div style="background-color: ${surfaceColor};" class="rounded-xl p-6 shadow-md">
+            <h3 class="text-lg-custom font-semibold mb-4" style="color: ${textColor};">Recent Activity</h3>
+            <div class="space-y-3">
+              ${renderActivityItem('New message from GreenCycle Junkshop', '2 hours ago', textColor)}
+              ${renderActivityItem(userType === 'household' ? 'Collection request accepted' : 'New collection request received', '5 hours ago', textColor)}
+              ${renderActivityItem('Rate list updated', '1 day ago', textColor)}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderStatCard(icon, label, value, surfaceColor, textColor, accentColor) {
+      return `
+        <div style="background-color: ${surfaceColor}; border-left: 4px solid ${accentColor};" class="rounded-xl p-6 shadow-md">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm-custom mb-1" style="color: ${textColor}80;">${label}</p>
+              <p class="text-xl-custom font-bold" style="color: ${textColor};">${value}</p>
+            </div>
+            <div class="text-4xl">${icon}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderActivityItem(text, time, textColor) {
+      return `
+        <div class="flex items-start gap-3 pb-3 border-b" style="border-color: ${textColor}20;">
+          <div class="text-lg">•</div>
+          <div class="flex-1">
+            <p class="text-base-custom" style="color: ${textColor};">${text}</p>
+            <p class="text-xs-custom" style="color: ${textColor}60;">${time}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderChatbot() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <!-- Chatbot Button -->
+        <button 
+          id="chatbot-button"
+          onclick="toggleChatbot()"
+          style="background: linear-gradient(135deg, ${primaryColor}, ${config.secondary_action_color || defaultConfig.secondary_action_color}); color: ${surfaceColor};"
+          class="fixed bottom-6 right-6 w-16 h-16 rounded-full shadow-2xl flex items-center justify-center text-2xl hover:scale-110 transition-transform z-50"
+        >
+          ${isChatbotOpen ? '✕' : '🤖'}
+        </button>
+
+        <!-- Chatbot Panel -->
+        <div 
+          id="chatbot-panel"
+          style="background-color: ${surfaceColor}; display: ${isChatbotOpen ? 'flex' : 'none'};"
+          class="fixed bottom-24 right-6 w-96 h-[500px] rounded-2xl shadow-2xl flex-col z-50 slide-in-right"
+        >
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, ${primaryColor}, ${config.secondary_action_color || defaultConfig.secondary_action_color}); color: ${surfaceColor};" class="p-4 rounded-t-2xl">
+            <h3 class="text-lg-custom font-bold">Waiz Assistant 🤖</h3>
+            <p class="text-sm-custom opacity-90">Here to help you navigate!</p>
+          </div>
+
+          <!-- Messages -->
+          <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3">
+            ${renderChatMessage('bot', 'Hi! I\'m the Waiz Assistant. How can I help you today?', surfaceColor, textColor, primaryColor)}
+            ${chatMessages.map(msg => renderChatMessage(msg.sender, msg.text, surfaceColor, textColor, primaryColor)).join('')}
+          </div>
+
+          <!-- Input -->
+          <div class="p-4 border-t" style="border-color: ${primaryColor}20;">
+            <form onsubmit="sendChatMessage(event)" class="flex gap-2">
+              <input 
+                type="text" 
+                id="chat-input"
+                required
+                style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                class="flex-1 px-4 py-2 rounded-lg text-base-custom focus:outline-none focus:ring-2"
+                placeholder="Ask me anything..."
+              >
+              <button 
+                type="submit"
+                style="background-color: ${primaryColor}; color: ${surfaceColor};"
+                class="px-4 py-2 rounded-lg text-base-custom font-semibold hover:opacity-90"
+              >
+                Send
+              </button>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderChatMessage(sender, text, surfaceColor, textColor, primaryColor) {
+      const isBot = sender === 'bot';
+      const bgColor = isBot ? `${primaryColor}20` : primaryColor;
+      const color = isBot ? textColor : surfaceColor;
+      const align = isBot ? 'items-start' : 'items-end';
+
+      return `
+        <div class="flex flex-col ${align}">
+          <div style="background-color: ${bgColor}; color: ${color};" class="chat-bubble px-4 py-2 rounded-lg text-base-custom">
+            ${text}
+          </div>
+        </div>
+      `;
+    }
+
+    // Navigation Functions
+    function navigateTo(view) {
+      currentView = view;
+      render();
+    }
+
+    function switchDashboardView(viewId) {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      // Update active menu item
+      document.querySelectorAll('[id^="menu-"]').forEach(btn => {
+        btn.style.backgroundColor = 'transparent';
+      });
+      const activeBtn = document.getElementById(`menu-${viewId}`);
+      if (activeBtn) {
+        activeBtn.style.backgroundColor = `${primaryColor}20`;
+      }
+
+      const content = document.getElementById('dashboard-content');
+      const userType = currentUser ? currentUser.user_type : 'household';
+
+      switch(viewId) {
+        case 'home':
+          content.innerHTML = renderDashboardHome(userType);
+          break;
+        case 'items':
+          content.innerHTML = renderItemsView(userType);
+          break;
+        case 'requests':
+          content.innerHTML = renderRequestsView(userType);
+          break;
+        case 'messages':
+          content.innerHTML = renderMessagesView();
+          break;
+        case 'rates':
+          content.innerHTML = renderRatesView();
+          break;
+        case 'profile':
+          content.innerHTML = renderProfileView();
+          break;
+      }
+      applyFontSizes();
+    }
+
+    function renderItemsView(userType) {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="space-y-6">
+          <div class="flex justify-between items-center">
+            <h2 class="text-xl-custom font-bold" style="color: ${textColor};">
+              ${userType === 'household' ? 'Browse Items' : 'My Items for Sale'}
+            </h2>
+            ${userType === 'junkshop' ? `
+              <button style="background-color: ${primaryColor}; color: ${surfaceColor};" class="px-6 py-2 rounded-lg text-base-custom font-semibold hover:opacity-90">
+                + Add Item
+              </button>
+            ` : ''}
+          </div>
+
+          <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            ${mockItems.map(item => `
+              <div style="background-color: ${surfaceColor}; border: 2px solid ${primaryColor}20;" class="rounded-xl p-6 hover-lift shadow-md">
+                <div class="text-6xl mb-4 text-center">${item.image}</div>
+                <h3 class="text-lg-custom font-semibold mb-2" style="color: ${textColor};">${item.title}</h3>
+                <p class="text-base-custom mb-3" style="color: ${textColor}80;">Seller: ${item.seller}</p>
+                <div class="flex justify-between items-center">
+                  <span class="text-xl-custom font-bold" style="color: ${primaryColor};">${item.price}</span>
+                  <button style="background-color: ${primaryColor}; color: ${surfaceColor};" class="px-4 py-2 rounded-lg text-sm-custom font-semibold hover:opacity-90">
+                    ${userType === 'household' ? 'Contact' : 'Edit'}
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderRequestsView(userType) {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="space-y-6">
+          <div class="flex justify-between items-center">
+            <h2 class="text-xl-custom font-bold" style="color: ${textColor};">
+              ${userType === 'household' ? 'My Requests' : 'Collection Requests'}
+            </h2>
+            ${userType === 'household' ? `
+              <button style="background-color: ${primaryColor}; color: ${surfaceColor};" class="px-6 py-2 rounded-lg text-base-custom font-semibold hover:opacity-90">
+                + New Request
+              </button>
+            ` : ''}
+          </div>
+
+          <div class="space-y-4">
+            ${mockRequests.map(request => `
+              <div style="background-color: ${surfaceColor}; border-left: 4px solid ${request.status === 'Completed' ? config.secondary_action_color || defaultConfig.secondary_action_color : primaryColor};" class="rounded-xl p-6 shadow-md">
+                <div class="flex justify-between items-start mb-3">
+                  <div>
+                    <h3 class="text-lg-custom font-semibold mb-1" style="color: ${textColor};">${request.type} Request</h3>
+                    <p class="text-base-custom" style="color: ${textColor}80;">${request.items}</p>
+                  </div>
+                  <span style="background-color: ${request.status === 'Completed' ? config.secondary_action_color || defaultConfig.secondary_action_color : primaryColor}20; color: ${request.status === 'Completed' ? config.secondary_action_color || defaultConfig.secondary_action_color : primaryColor};" class="px-3 py-1 rounded-full text-sm-custom font-medium">
+                    ${request.status}
+                  </span>
+                </div>
+                <div class="flex gap-4 text-sm-custom" style="color: ${textColor}60;">
+                  <span>📅 ${request.date}</span>
+                  <span>📍 ${request.address}</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderMessagesView() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="space-y-6">
+          <h2 class="text-xl-custom font-bold" style="color: ${textColor};">Messages</h2>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div style="background-color: ${surfaceColor};" class="rounded-xl shadow-md">
+              <div class="p-4 border-b" style="border-color: ${primaryColor}20;">
+                <input 
+                  type="text"
+                  style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                  class="w-full px-4 py-2 rounded-lg text-base-custom"
+                  placeholder="Search messages..."
+                >
+              </div>
+              <div class="divide-y" style="border-color: ${primaryColor}20;">
+                ${['GreenCycle Junkshop', 'EcoHub Baguio', 'RecyclePoint'].map((name, i) => `
+                  <button class="w-full p-4 text-left hover:opacity-80 transition-opacity" style="background-color: ${i === 0 ? primaryColor + '10' : 'transparent'};">
+                    <div class="flex items-center gap-3 mb-2">
+                      <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg" style="background-color: ${primaryColor}20;">
+                        🏪
+                      </div>
+                      <div class="flex-1">
+                        <p class="text-base-custom font-semibold" style="color: ${textColor};">${name}</p>
+                        <p class="text-sm-custom truncate" style="color: ${textColor}60;">Thank you for your inquiry...</p>
+                      </div>
+                    </div>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+
+            <div style="background-color: ${surfaceColor};" class="md:col-span-2 rounded-xl shadow-md flex flex-col" style="height: 600px;">
+              <div class="p-4 border-b" style="border-color: ${primaryColor}20;">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg" style="background-color: ${primaryColor}20;">
+                    🏪
+                  </div>
+                  <div>
+                    <p class="text-base-custom font-semibold" style="color: ${textColor};">GreenCycle Junkshop</p>
+                    <p class="text-xs-custom" style="color: ${textColor}60;">Active now</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex-1 overflow-y-auto p-4 space-y-3">
+                <div class="flex items-start gap-2">
+                  <div style="background-color: ${primaryColor}20; color: ${textColor};" class="px-4 py-2 rounded-lg text-base-custom max-w-[70%]">
+                    Hello! I'm interested in selling some plastic bottles.
+                  </div>
+                </div>
+                <div class="flex items-end gap-2 justify-end">
+                  <div style="background-color: ${primaryColor}; color: ${surfaceColor};" class="px-4 py-2 rounded-lg text-base-custom max-w-[70%]">
+                    Great! We're currently buying PET bottles at ₱3 per piece. How many do you have?
+                  </div>
+                </div>
+              </div>
+
+              <div class="p-4 border-t" style="border-color: ${primaryColor}20;">
+                <form class="flex gap-2">
+                  <input 
+                    type="text"
+                    style="background-color: ${config.background_color || defaultConfig.background_color}; color: ${textColor}; border: 2px solid ${primaryColor}40;"
+                    class="flex-1 px-4 py-2 rounded-lg text-base-custom"
+                    placeholder="Type a message..."
+                  >
+                  <button type="submit" style="background-color: ${primaryColor}; color: ${surfaceColor};" class="px-6 py-2 rounded-lg text-base-custom font-semibold hover:opacity-90">
+                    Send
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderRatesView() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="space-y-6">
+          <div>
+            <h2 class="text-xl-custom font-bold mb-2" style="color: ${textColor};">Current Rate List</h2>
+            <p class="text-base-custom" style="color: ${textColor}80;">Standard rates for recyclable materials in Baguio</p>
+          </div>
+
+          <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            ${rateList.map(rate => `
+              <div style="background-color: ${surfaceColor}; border: 2px solid ${primaryColor}20;" class="rounded-xl p-6 hover-lift shadow-md">
+                <div class="text-5xl mb-4 text-center">${rate.icon}</div>
+                <h3 class="text-lg-custom font-semibold mb-2 text-center" style="color: ${textColor};">${rate.material}</h3>
+                <p class="text-xl-custom font-bold text-center" style="color: ${primaryColor};">${rate.price}</p>
+              </div>
+            `).join('')}
+          </div>
+
+          <div style="background-color: ${surfaceColor};" class="rounded-xl p-6 shadow-md">
+            <p class="text-sm-custom" style="color: ${textColor}80;">
+              ℹ️ Rates may vary by junkshop and material condition. Contact individual junkshops for specific rates.
+            </p>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderProfileView() {
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+
+      return `
+        <div class="space-y-6">
+          <h2 class="text-xl-custom font-bold" style="color: ${textColor};">Profile Settings</h2>
+
+          <div style="background-color: ${surfaceColor};" class="rounded-xl p-8 shadow-md">
+            <div class="flex items-center gap-6 mb-8">
+              <div class="w-24 h-24 rounded-full flex items-center justify-center text-5xl" style="background: linear-gradient(135deg, ${primaryColor}, ${config.secondary_action_color || defaultConfig.secondary_action_color});">
+                ${currentUser && currentUser.user_type === 'junkshop' ? '🏪' : '🏠'}
+              </div>
+              <div>
+                <h3 class="text-xl-custom font-bold mb-1" style="color: ${textColor};">${currentUser ? currentUser.name : 'User Name'}</h3>
+                <p class="text-base-custom mb-2" style="color: ${textColor}80;">${currentUser ? currentUser.user_type.charAt(0).toUpperCase() + currentUser.user_type.slice(1) : 'User Type'}</p>
+                <button style="color: ${primaryColor};" class="text-sm-custom font-semibold hover:underline">Edit Profile</button>
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="text-sm-custom font-medium block mb-2" style="color: ${textColor}80;">Email</label>
+                <p class="text-base-custom" style="color: ${textColor};">${currentUser ? currentUser.email : 'user@example.com'}</p>
+              </div>
+              <div>
+                <label class="text-sm-custom font-medium block mb-2" style="color: ${textColor}80;">Phone</label>
+                <p class="text-base-custom" style="color: ${textColor};">${currentUser ? currentUser.phone : '+63 XXX XXX XXXX'}</p>
+              </div>
+              <div>
+                <label class="text-sm-custom font-medium block mb-2" style="color: ${textColor}80;">Address</label>
+                <p class="text-base-custom" style="color: ${textColor};">📍 ${currentUser ? currentUser.address : 'Baguio City'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Event Handlers
+    let selectedUserType = null;
+
+    function selectUserType(type) {
+      selectedUserType = type;
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      
+      document.getElementById('type-household').style.backgroundColor = type === 'household' ? primaryColor : config.background_color || defaultConfig.background_color;
+      document.getElementById('type-household').style.color = type === 'household' ? surfaceColor : config.text_color || defaultConfig.text_color;
+      
+      document.getElementById('type-junkshop').style.backgroundColor = type === 'junkshop' ? primaryColor : config.background_color || defaultConfig.background_color;
+      document.getElementById('type-junkshop').style.color = type === 'junkshop' ? surfaceColor : config.text_color || defaultConfig.text_color;
+      
+      const addressLabel = document.getElementById('address-label');
+      addressLabel.textContent = type === 'junkshop' ? 'Junkshop Location' : 'Pickup Address';
+      
+      const signupButton = document.getElementById('signup-button');
+      signupButton.disabled = false;
+      signupButton.style.backgroundColor = primaryColor;
+      signupButton.style.cursor = 'pointer';
+    }
+
+    async function handleSignup(event) {
+      event.preventDefault();
+      
+      if (!selectedUserType) {
+        return;
+      }
+
+      const button = event.target.querySelector('button[type="submit"]');
+      button.disabled = true;
+      button.textContent = 'Creating account...';
+
+      const userData = {
+        id: Date.now().toString(),
+        user_type: selectedUserType,
+        name: document.getElementById('signup-name').value,
+        email: document.getElementById('signup-email').value,
+        phone: document.getElementById('signup-phone').value,
+        address: document.getElementById('signup-address').value,
+        created_at: new Date().toISOString()
+      };
+
+      const result = await window.dataSdk.create(userData);
+      
+      if (result.isOk) {
+        currentUser = userData;
+        currentView = 'dashboard';
+        render();
+      } else {
+        button.disabled = false;
+        button.textContent = 'Sign Up';
+        
+        const errorDiv = document.createElement('div');
+        errorDiv.style.backgroundColor = '#fee';
+        errorDiv.style.color = '#c00';
+        errorDiv.style.padding = '12px';
+        errorDiv.style.borderRadius = '8px';
+        errorDiv.style.marginTop = '16px';
+        errorDiv.className = 'text-sm-custom';
+        errorDiv.textContent = 'Failed to create account. Please try again.';
+        event.target.appendChild(errorDiv);
+        
+        setTimeout(() => errorDiv.remove(), 5000);
+      }
+    }
+
+    function handleLogin(event) {
+      event.preventDefault();
+      
+      // Demo login - in production this would validate credentials
+      currentUser = {
+        id: '1',
+        user_type: 'household',
+        name: 'Demo User',
+        email: document.getElementById('login-email').value,
+        phone: '+63 XXX XXX XXXX',
+        address: 'Session Road, Baguio City'
+      };
+      
+      currentView = 'dashboard';
+      render();
+    }
+
+    function handleLogout() {
+      currentUser = null;
+      currentView = 'landing';
+      render();
+    }
+
+    function toggleChatbot() {
+      isChatbotOpen = !isChatbotOpen;
+      const panel = document.getElementById('chatbot-panel');
+      const button = document.getElementById('chatbot-button');
+      
+      if (panel && button) {
+        panel.style.display = isChatbotOpen ? 'flex' : 'none';
+        button.textContent = isChatbotOpen ? '✕' : '🤖';
+      }
+    }
+
+    function sendChatMessage(event) {
+      event.preventDefault();
+      
+      const input = document.getElementById('chat-input');
+      const message = input.value.trim();
+      
+      if (!message) return;
+      
+      chatMessages.push({ sender: 'user', text: message });
+      input.value = '';
+      
+      // Simulate bot response
+      setTimeout(() => {
+        const botResponses = {
+          'how': 'You can navigate through different sections using the sidebar menu. Each section has specific features for managing your recyclables!',
+          'rate': 'Current rates vary by material type. Check the Rate List section in the dashboard for detailed pricing.',
+          'message': 'You can send messages to junkshops through the Messages tab. Simply select a junkshop and start chatting!',
+          'request': 'To create a collection request, go to the Requests section and click "New Request". Fill in your details and submit!',
+          'default': 'I can help you with navigation, rates, messaging, and collection requests. What would you like to know more about?'
+        };
+        
+        let response = botResponses.default;
+        for (let key in botResponses) {
+          if (message.toLowerCase().includes(key)) {
+            response = botResponses[key];
+            break;
+          }
+        }
+        
+        chatMessages.push({ sender: 'bot', text: response });
+        render();
+      }, 1000);
+      
+      render();
+    }
+
+    // Initialize
+    window.addEventListener('DOMContentLoaded', initializeApp);
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a1541876088f325',t:'MTc2MzYxMzQ4Ny4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
+
