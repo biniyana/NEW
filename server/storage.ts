@@ -85,7 +85,7 @@ export class MemStorage implements IStorage {
     // Seed junkshop user
     const junkshop: User = {
       id: "junkshop-1",
-      name: "GreenCycle Junkshop",
+      name: "Caniezo Junkshop",
       email: "greencycle@example.com",
       phone: "+63 917 765 4321",
       address: "456 Burnham Park Area, Baguio City",
