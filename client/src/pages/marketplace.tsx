@@ -127,6 +127,48 @@ export default function MarketplacePage() {
 }
 
 function ItemCard({ item }: { item: Item }) {
+  const { toast } = useToast();
+  const currentUser: User | null = localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")!) : null;
+  
+  const contactMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", "/api/messages", {
+        senderId: currentUser?.id,
+        senderName: currentUser?.name,
+        receiverId: item.sellerId,
+        receiverName: item.sellerName,
+        content: `Hi! I'm interested in your ${item.title}. Can we discuss the details?`,
+        read: "false",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
+      toast({
+        title: "Message sent!",
+        description: `Started conversation with ${item.sellerName}`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to contact seller",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleContactSeller = () => {
+    if (!currentUser) {
+      toast({
+        title: "Please login",
+        description: "You need to be logged in to contact sellers",
+        variant: "destructive",
+      });
+      return;
+    }
+    contactMutation.mutate();
+  };
+
   return (
     <Card className="hover-elevate" data-testid={`card-item-${item.id}`}>
       <CardHeader>
@@ -144,8 +186,13 @@ function ItemCard({ item }: { item: Item }) {
         )}
       </CardContent>
       <CardFooter>
-        <Button className="w-full" data-testid={`button-contact-${item.id}`}>
-          Contact Seller
+        <Button 
+          className="w-full" 
+          data-testid={`button-contact-${item.id}`}
+          onClick={handleContactSeller}
+          disabled={contactMutation.isPending}
+        >
+          {contactMutation.isPending ? "Contacting..." : "Contact Seller"}
         </Button>
       </CardFooter>
     </Card>

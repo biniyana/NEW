@@ -38,6 +38,9 @@ export function ChatbotBubble({ currentUser }: ChatbotBubbleProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/chatbot", currentUser?.id] });
       setMessageText("");
     },
+    onError: (error: any) => {
+      console.error("Chat error:", error);
+    },
   });
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -74,6 +77,12 @@ export function ChatbotBubble({ currentUser }: ChatbotBubbleProps) {
           {/* Chat Area */}
           <ScrollArea className="flex-1 p-4">
             <div className="space-y-3">
+              {chatMutation.isError && (
+                <div className="bg-destructive/20 text-destructive-foreground rounded-lg p-3 text-xs">
+                  <p className="font-medium mb-1">Jarvish is temporarily unavailable</p>
+                  <p>Our AI assistant is experiencing issues. Please try again later or ask our support team.</p>
+                </div>
+              )}
               {conversations.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="text-3xl mb-2">🤖</div>
