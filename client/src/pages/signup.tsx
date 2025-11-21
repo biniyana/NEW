@@ -23,7 +23,8 @@ export default function Signup() {
 
   const signupMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest("POST", "/api/auth/signup", data);
+      const response = await apiRequest("POST", "/api/auth/signup", data);
+      return await response.json();
     },
     onSuccess: (data: any) => {
       localStorage.setItem("user", JSON.stringify(data.user));
