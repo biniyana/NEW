@@ -424,15 +424,7 @@ export class MemStorage implements IStorage {
   }
 }
 
-// Use Supabase storage if credentials are available, otherwise fall back to MemStorage
-let storage: IStorage;
-
-if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
-  storage = new SupabaseStorage();
-  // Initialize seed data asynchronously (fire and forget)
-  storage.seedData?.().catch((err) => console.error("Failed to seed Supabase data:", err));
-} else {
-  storage = new MemStorage();
-}
+// Use MemStorage for development (Supabase tables not set up)
+const storage = new MemStorage();
 
 export { storage };
