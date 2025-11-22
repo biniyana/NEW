@@ -57,25 +57,23 @@ export default function MarketplacePage({ onNavigateToMessages }: MarketplacePag
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold text-foreground">
-            {isJunkshop ? "My Listings" : "Browse Marketplace"}
+            Marketplace
           </h2>
           <p className="text-muted-foreground">
-            {isJunkshop ? "Manage your recyclable items" : "Discover recyclable materials in Baguio"}
+            Buy and sell recyclable materials in Baguio City
           </p>
         </div>
-        {isJunkshop && (
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-add-item">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Item
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <AddItemForm onClose={() => setIsDialogOpen(false)} />
-            </DialogContent>
-          </Dialog>
-        )}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-add-item">
+              <Plus className="w-4 h-4 mr-2" />
+              Post Item
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <AddItemForm onClose={() => setIsDialogOpen(false)} />
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Category Filter */}
@@ -141,9 +139,16 @@ function ItemCard({ item, onNavigateToMessages }: ItemCardProps) {
   
   const contactMutation = useMutation({
     mutationFn: async () => {
+      if (!currentUser?.id || !currentUser?.name) {
+        throw new Error("User information missing");
+      }
+      if (!item.sellerId || !item.sellerName) {
+        throw new Error("Seller information missing");
+      }
+      
       return await apiRequest("POST", "/api/messages", {
-        senderId: currentUser?.id,
-        senderName: currentUser?.name,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
         receiverId: item.sellerId,
         receiverName: item.sellerName,
         content: `Hi! I'm interested in your ${item.title}. Can we discuss the details?`,
@@ -158,13 +163,14 @@ function ItemCard({ item, onNavigateToMessages }: ItemCardProps) {
       });
       // Navigate to messages after successful contact
       if (onNavigateToMessages) {
-        onNavigateToMessages();
+        setTimeout(() => onNavigateToMessages(), 500);
       }
     },
     onError: (error: any) => {
+      console.error("Contact error:", error);
       toast({
         title: "Failed to contact seller",
-        description: error.message,
+        description: error?.message || "Please try again",
         variant: "destructive",
       });
     },
@@ -175,6 +181,14 @@ function ItemCard({ item, onNavigateToMessages }: ItemCardProps) {
       toast({
         title: "Please login",
         description: "You need to be logged in to contact sellers",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (currentUser.id === item.sellerId) {
+      toast({
+        title: "Cannot contact yourself",
+        description: "You are the seller of this item",
         variant: "destructive",
       });
       return;
@@ -212,7 +226,11 @@ function ItemCard({ item, onNavigateToMessages }: ItemCardProps) {
   );
 }
 
-function AddItemForm({ onClose }: { onClose: () => void }) {
+interface AddItemFormProps {
+  onClose: () => void;
+}
+
+function AddItemForm({ onClose }: AddItemFormProps) {
   const { toast } = useToast();
   const currentUser: User = JSON.parse(localStorage.getItem("user")!);
 
@@ -221,6 +239,7 @@ function AddItemForm({ onClose }: { onClose: () => void }) {
     category: "",
     price: "",
     description: "",
+    emoji: "📦",
   });
 
   const addItemMutation = useMutation({

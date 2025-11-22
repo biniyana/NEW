@@ -144,7 +144,49 @@ export class MemStorage implements IStorage {
       status: "available",
       createdAt: new Date(),
     };
-    [item1, item2, item3].forEach((item) => this.items.set(item.id, item));
+
+    // Household items for sale
+    const item4: Item = {
+      id: "item-4",
+      title: "Used Glass Bottles (20pcs)",
+      category: "Glass",
+      price: "₱40",
+      description: "Clean glass bottles, mostly liquor bottles",
+      imageUrl: null,
+      emoji: "🍷",
+      sellerId: household.id,
+      sellerName: household.name,
+      status: "available",
+      createdAt: new Date(),
+    };
+    const item5: Item = {
+      id: "item-5",
+      title: "Cardboard Boxes Bundle",
+      category: "Cardboard",
+      price: "₱25",
+      description: "Flattened cardboard boxes from deliveries",
+      imageUrl: null,
+      emoji: "📦",
+      sellerId: household.id,
+      sellerName: household.name,
+      status: "available",
+      createdAt: new Date(),
+    };
+    const item6: Item = {
+      id: "item-6",
+      title: "Mixed Plastic Containers (15pcs)",
+      category: "Plastic",
+      price: "₱35",
+      description: "Clean plastic food containers",
+      imageUrl: null,
+      emoji: "🍾",
+      sellerId: household.id,
+      sellerName: household.name,
+      status: "available",
+      createdAt: new Date(),
+    };
+    
+    [item1, item2, item3, item4, item5, item6].forEach((item) => this.items.set(item.id, item));
 
     // Seed requests
     const request1: Request = {
