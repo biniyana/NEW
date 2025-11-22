@@ -16,6 +16,7 @@ export default function MessagesPage() {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [messageText, setMessageText] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [chatSearchTerm, setChatSearchTerm] = useState("");
   const { toast } = useToast();
 
   const { data: messages = [] } = useQuery<Message[]>({
@@ -68,7 +69,10 @@ export default function MessagesPage() {
       const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
       const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
       return timeA - timeB;
-    });
+    })
+    .filter((m) =>
+      chatSearchTerm ? m.content.toLowerCase().includes(chatSearchTerm.toLowerCase()) : true
+    );
 
   const sendMessageMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -180,7 +184,7 @@ export default function MessagesPage() {
           {selectedUser ? (
             <>
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <CardTitle>
                     {conversations.find((c) => c.userId === selectedUser)?.userName}
                   </CardTitle>
@@ -193,6 +197,25 @@ export default function MessagesPage() {
                   >
                     <X className="w-4 h-4" />
                   </Button>
+                </div>
+                <div className="relative mt-3">
+                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search messages..."
+                    value={chatSearchTerm}
+                    onChange={(e) => setChatSearchTerm(e.target.value)}
+                    className="pl-10 pr-8"
+                    data-testid="input-search-chat"
+                  />
+                  {chatSearchTerm && (
+                    <button
+                      onClick={() => setChatSearchTerm("")}
+                      className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+                      data-testid="button-clear-chat-search"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="p-0">
