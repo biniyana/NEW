@@ -67,11 +67,11 @@ export class MemStorage implements IStorage {
     this.messages = new Map();
     this.chatbotConversations = new Map();
 
-    // Seed some initial data for testing
+    // Seed some initial data for testing (async, fire and forget)
     this.seedData();
   }
 
-  private seedData() {
+  private seedData(): void {
     // Seed household user
     const household: User = {
       id: "household-1",
@@ -82,6 +82,8 @@ export class MemStorage implements IStorage {
       password: "password123",
       userType: "household",
       rating: "4.8",
+      latitude: null,
+      longitude: null,
       createdAt: new Date(),
     };
     this.users.set(household.id, household);
@@ -96,6 +98,8 @@ export class MemStorage implements IStorage {
       password: "password123",
       userType: "junkshop",
       rating: "4.9",
+      latitude: null,
+      longitude: null,
       createdAt: new Date(),
     };
     this.users.set(junkshop.id, junkshop);
@@ -107,6 +111,7 @@ export class MemStorage implements IStorage {
       category: "Plastic",
       price: "₱150",
       description: "Clean PET plastic bottles, various sizes",
+      imageUrl: null,
       emoji: "🍾",
       sellerId: junkshop.id,
       sellerName: junkshop.name,
@@ -119,6 +124,7 @@ export class MemStorage implements IStorage {
       category: "Paper",
       price: "₱80",
       description: "Bundle of newspapers, approximately 10kg",
+      imageUrl: null,
       emoji: "📰",
       sellerId: junkshop.id,
       sellerName: junkshop.name,
@@ -131,6 +137,7 @@ export class MemStorage implements IStorage {
       category: "Metal",
       price: "₱120",
       description: "Crushed aluminum soda cans",
+      imageUrl: null,
       emoji: "🥫",
       sellerId: junkshop.id,
       sellerName: junkshop.name,
@@ -208,7 +215,9 @@ export class MemStorage implements IStorage {
     const user: User = {
       ...insertUser,
       id,
-      rating: "0",
+      rating: insertUser.rating || "0",
+      latitude: null,
+      longitude: null,
       createdAt: new Date(),
     };
     this.users.set(id, user);
@@ -251,6 +260,9 @@ export class MemStorage implements IStorage {
     const item: Item = {
       ...insertItem,
       id,
+      status: insertItem.status || "available",
+      emoji: insertItem.emoji || "📦",
+      imageUrl: insertItem.imageUrl || null,
       createdAt: new Date(),
     };
     this.items.set(id, item);
@@ -295,6 +307,9 @@ export class MemStorage implements IStorage {
     const request: Request = {
       ...insertRequest,
       id,
+      status: insertRequest.status || "Pending",
+      responderId: insertRequest.responderId || null,
+      responderName: insertRequest.responderName || null,
       createdAt: new Date(),
     };
     this.requests.set(id, request);

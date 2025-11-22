@@ -427,7 +427,7 @@ export class SupabaseStorage implements IStorage {
   }
 
   // Helper methods to map Supabase snake_case to camelCase
-  private mapMessage(data: any): Message {
+  private mapMessage(data: any): Message | undefined {
     if (!data) return undefined;
     return {
       ...data,
@@ -438,7 +438,7 @@ export class SupabaseStorage implements IStorage {
     };
   }
 
-  private mapRequest(data: any): Request {
+  private mapRequest(data: any): Request | undefined {
     if (!data) return undefined;
     return {
       ...data,
@@ -446,16 +446,16 @@ export class SupabaseStorage implements IStorage {
       requesterName: data.requester_name,
       responderId: data.responder_id,
       responderName: data.responder_name,
-      createdAt: new Date(data.created_at),
+      createdAt: data.created_at ? new Date(data.created_at) : null,
     };
   }
 
-  private mapChatbotConversation(data: any): ChatbotConversation {
+  private mapChatbotConversation(data: any): ChatbotConversation | undefined {
     if (!data) return undefined;
     return {
       ...data,
       userId: data.user_id,
-      timestamp: new Date(data.timestamp),
+      timestamp: data.timestamp ? new Date(data.timestamp) : null,
     };
   }
 }
