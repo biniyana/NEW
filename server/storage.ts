@@ -92,7 +92,7 @@ export class MemStorage implements IStorage {
     const junkshop: User = {
       id: "junkshop-1",
       name: "Caniezo Junkshop",
-      email: "caniezojunkshop@gmail.com",
+      email: "test@example.com",
       phone: "+63 917 765 4321",
       address: "456 Burnham Park Area, Baguio City",
       password: "password123",
