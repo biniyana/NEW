@@ -174,7 +174,7 @@ export class SupabaseStorage implements IStorage {
       .select("*")
       .eq("id", id)
       .single();
-    return data || undefined;
+    return data ? this.mapUser(data) : undefined;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
@@ -186,7 +186,7 @@ export class SupabaseStorage implements IStorage {
     if (error && error.code !== "PGRST116") {
       throw new Error(`Failed to get user: ${error.message}`);
     }
-    return data || undefined;
+    return data ? this.mapUser(data) : undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
@@ -195,38 +195,72 @@ export class SupabaseStorage implements IStorage {
       .from("users")
       .insert({
         id,
-        ...insertUser,
+        name: insertUser.name,
+        email: insertUser.email,
+        phone: insertUser.phone,
+        address: insertUser.address,
+        password: insertUser.password,
+        user_type: insertUser.userType,
+        rating: insertUser.rating || "0",
+        latitude: insertUser.latitude || null,
+        longitude: insertUser.longitude || null,
       })
       .select()
       .single();
     if (error) throw new Error(`Failed to create user: ${error.message}`);
     if (!data) throw new Error("Failed to create user: No data returned");
-    return data;
+    return this.mapUser(data);
+  }
+
+  private mapUser(data: any): User {
+    if (!data) return data;
+    return {
+      ...data,
+      userType: data.user_type,
+      createdAt: data.created_at ? new Date(data.created_at) : null,
+    };
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
+    const mappedUpdates: any = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (key === "userType") mappedUpdates.user_type = value;
+      else if (key === "createdAt") mappedUpdates.created_at = value;
+      else mappedUpdates[key] = value;
+    }
     const { data } = await supabase
       .from("users")
-      .update(updates)
+      .update(mappedUpdates)
       .eq("id", id)
       .select()
       .single();
-    return data || undefined;
+    return data ? this.mapUser(data) : undefined;
   }
 
   async getAllUsers(): Promise<User[]> {
     const { data } = await supabase.from("users").select("*");
-    return data || [];
+    return (data || []).map((u) => this.mapUser(u));
   }
 
   // Items
+  private mapItem(data: any): Item {
+    if (!data) return data;
+    return {
+      ...data,
+      sellerId: data.seller_id,
+      sellerName: data.seller_name,
+      imageUrl: data.image_url,
+      createdAt: data.created_at ? new Date(data.created_at) : null,
+    };
+  }
+
   async getItem(id: string): Promise<Item | undefined> {
     const { data } = await supabase
       .from("items")
       .select("*")
       .eq("id", id)
       .single();
-    return data || undefined;
+    return data ? this.mapItem(data) : undefined;
   }
 
   async getItems(category?: string): Promise<Item[]> {
@@ -235,7 +269,7 @@ export class SupabaseStorage implements IStorage {
       query = query.eq("category", category);
     }
     const { data } = await query;
-    return data || [];
+    return (data || []).map((i) => this.mapItem(i));
   }
 
   async getItemsBySeller(sellerId: string): Promise<Item[]> {
@@ -243,7 +277,7 @@ export class SupabaseStorage implements IStorage {
       .from("items")
       .select("*")
       .eq("seller_id", sellerId);
-    return data || [];
+    return (data || []).map((i) => this.mapItem(i));
   }
 
   async createItem(insertItem: InsertItem): Promise<Item> {
@@ -252,16 +286,21 @@ export class SupabaseStorage implements IStorage {
       .from("items")
       .insert({
         id,
-        ...insertItem,
+        title: insertItem.title,
+        category: insertItem.category,
+        price: insertItem.price,
+        description: insertItem.description || null,
+        image_url: insertItem.imageUrl || null,
+        emoji: insertItem.emoji || "📦",
         seller_id: insertItem.sellerId,
         seller_name: insertItem.sellerName,
-        image_url: insertItem.imageUrl,
+        status: insertItem.status || "available",
       })
       .select()
       .single();
     if (error) throw new Error(`Failed to create item: ${error.message}`);
     if (!data) throw new Error("Failed to create item: No data returned");
-    return data;
+    return this.mapItem(data);
   }
 
   async updateItem(id: string, updates: Partial<Item>): Promise<Item | undefined> {
@@ -279,7 +318,7 @@ export class SupabaseStorage implements IStorage {
       .eq("id", id)
       .select()
       .single();
-    return data || undefined;
+    return data ? this.mapItem(data) : undefined;
   }
 
   async deleteItem(id: string): Promise<boolean> {
