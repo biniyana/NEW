@@ -44,3 +44,9 @@ waitForPort = 5000
 
 [agent]
 integrations = ["javascript_mem_db:1.0.0", "javascript_openai:1.0.0"]
+
+[userenv]
+
+[userenv.shared]
+SUPABASE_URL = "https://hvmxemapjumrwcoyaduh.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh2bXhlbWFwanVtcndjb3lhZHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM3MjMzMDgsImV4cCI6MjA3OTI5OTMwOH0.8CWL5QxZtarAAVBxJmn2FSOY3OLDVodqeW5359Nu76w"
