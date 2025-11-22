@@ -130,7 +130,7 @@ export default function Dashboard() {
         {/* Main Content */}
         <main className="flex-1 p-6">
           {activeTab === "home" && <DashboardHome currentUser={currentUser} />}
-          {activeTab === "items" && <MarketplacePage />}
+          {activeTab === "items" && <MarketplacePage onNavigateToMessages={() => setActiveTab("messages")} />}
           {activeTab === "requests" && <RequestsPage />}
           {activeTab === "messages" && <MessagesPage />}
           {activeTab === "rates" && <RatesPage />}

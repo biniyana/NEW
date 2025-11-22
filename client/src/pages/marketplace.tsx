@@ -25,7 +25,11 @@ const categoryEmojis: Record<string, string> = {
   Copper: "🔌",
 };
 
-export default function MarketplacePage() {
+interface MarketplacePageProps {
+  onNavigateToMessages?: () => void;
+}
+
+export default function MarketplacePage({ onNavigateToMessages }: MarketplacePageProps) {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -118,7 +122,7 @@ export default function MarketplacePage() {
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredItems.map((item) => (
-            <ItemCard key={item.id} item={item} />
+            <ItemCard key={item.id} item={item} onNavigateToMessages={onNavigateToMessages} />
           ))}
         </div>
       )}
@@ -126,7 +130,12 @@ export default function MarketplacePage() {
   );
 }
 
-function ItemCard({ item }: { item: Item }) {
+interface ItemCardProps {
+  item: Item;
+  onNavigateToMessages?: () => void;
+}
+
+function ItemCard({ item, onNavigateToMessages }: ItemCardProps) {
   const { toast } = useToast();
   const currentUser: User | null = localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")!) : null;
   
@@ -147,6 +156,10 @@ function ItemCard({ item }: { item: Item }) {
         title: "Message sent!",
         description: `Started conversation with ${item.sellerName}`,
       });
+      // Navigate to messages after successful contact
+      if (onNavigateToMessages) {
+        onNavigateToMessages();
+      }
     },
     onError: (error: any) => {
       toast({
