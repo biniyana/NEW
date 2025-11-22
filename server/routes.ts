@@ -273,41 +273,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content: userMessage,
       });
 
-      // Get conversation history for context - the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+      // Get conversation history for context
       const history = await storage.getChatbotConversation(userId);
 
       let assistantMessage: string;
 
-      try {
-        // Build conversation messages for OpenAI
-        const messages: any[] = [
-          {
-            role: "system",
-            content: "You are Jarvish, a helpful eco-friendly marketplace assistant for Waiz. You help users with questions about recycling, selling recyclables, collection requests, and the Waiz platform. Be friendly, knowledgeable about eco-friendly practices, and focused on helping users make sustainable choices.",
-          },
-        ];
-
-        // Add conversation history
-        history.forEach((conv) => {
-          messages.push({
-            role: conv.role,
-            content: conv.content,
-          });
-        });
-
-        // Get AI response
-        const response = await openai.chat.completions.create({
-          model: "gpt-5",
-          messages,
-          max_completion_tokens: 500,
-        });
-
-        assistantMessage = response.choices[0].message.content || getSmartFallbackResponse(userMessage);
-      } catch (openaiError: any) {
-        console.error("OpenAI error:", openaiError.message);
-        // Use smart fallback response instead of failing
-        assistantMessage = getSmartFallbackResponse(userMessage);
-      }
+      // Always use smart fallback (OpenAI not available or quota exceeded)
+      assistantMessage = getSmartFallbackResponse(userMessage);
 
       // Save assistant message
       await storage.createChatbotConversation({
@@ -316,6 +288,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content: assistantMessage,
       });
 
+      console.log("Chatbot response sent:", { userId, userMessage, assistantMessage });
       res.json({ message: assistantMessage });
     } catch (error: any) {
       console.error("Chatbot error:", error);
