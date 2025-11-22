@@ -152,7 +152,6 @@ function ItemCard({ item, onNavigateToMessages }: ItemCardProps) {
         receiverId: item.sellerId,
         receiverName: item.sellerName,
         content: `Hi! I'm interested in your ${item.title}. Can we discuss the details?`,
-        read: "false",
       });
     },
     onSuccess: () => {

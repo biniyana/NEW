@@ -184,7 +184,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/messages", async (req, res) => {
     try {
+      console.log("Message request body:", req.body);
       const messageData = insertMessageSchema.parse(req.body);
+      console.log("Parsed message data:", messageData);
       const message = await storage.createMessage(messageData);
       // Ensure timestamp is serialized as ISO string
       const serializedMessage = {
@@ -193,6 +195,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       res.status(201).json(serializedMessage);
     } catch (error: any) {
+      console.error("Message error:", error);
       res.status(400).json({ message: error.message || "Failed to send message" });
     }
   });

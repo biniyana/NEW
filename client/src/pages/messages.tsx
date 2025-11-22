@@ -99,7 +99,6 @@ export default function MessagesPage() {
       receiverId: selectedUser,
       receiverName: receiver?.userName,
       content: messageText,
-      read: "false",
     });
   };
 

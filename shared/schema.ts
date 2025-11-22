@@ -100,6 +100,8 @@ export const insertRequestSchema = createInsertSchema(requests).omit({
 export const insertMessageSchema = createInsertSchema(messages).omit({
   id: true,
   timestamp: true,
+}).extend({
+  read: z.string().optional().default("false"),
 });
 
 export const insertReviewSchema = createInsertSchema(reviews).omit({
