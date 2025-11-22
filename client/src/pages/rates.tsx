@@ -20,7 +20,7 @@ export default function RatesPage() {
       <div>
         <div className="flex items-center gap-3 mb-2">
           <span className="text-4xl">₱</span>
-          <h2 className="text-3xl font-bold text-foreground">Philippine Pesos Rate List</h2>
+          <h2 className="text-3xl font-bold text-foreground">Rate List</h2>
         </div>
         <p className="text-muted-foreground">Market prices for recyclable materials in Baguio City</p>
       </div>
