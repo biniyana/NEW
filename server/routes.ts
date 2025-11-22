@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertItemSchema, insertRequestSchema, insertMessageSchema, insertChatbotConversationSchema } from "@shared/schema";
+import { insertUserSchema, insertItemSchema, insertRequestSchema, insertMessageSchema, insertChatbotConversationSchema, insertRateSchema } from "@shared/schema";
 import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -293,6 +293,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Chatbot error:", error);
       res.status(400).json({ message: error.message || "Failed to process chatbot message" });
+    }
+  });
+
+  // Rates routes
+  app.get("/api/rates", async (req, res) => {
+    try {
+      const rates = await storage.getRates();
+      res.json(rates);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch rates" });
+    }
+  });
+
+  app.patch("/api/rates/:id", async (req, res) => {
+    try {
+      const updated = await storage.updateRate(req.params.id, req.body);
+      if (!updated) {
+        return res.status(404).json({ message: "Rate not found" });
+      }
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to update rate" });
     }
   });
 

@@ -9,6 +9,8 @@ import {
   type InsertMessage,
   type ChatbotConversation,
   type InsertChatbotConversation,
+  type Rate,
+  type InsertRate,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { SupabaseStorage } from "./supabaseStorage";
@@ -49,6 +51,10 @@ export interface IStorage {
   getChatbotConversation(userId: string): Promise<ChatbotConversation[]>;
   createChatbotConversation(conv: InsertChatbotConversation): Promise<ChatbotConversation>;
 
+  // Rates
+  getRates(): Promise<Rate[]>;
+  updateRate(id: string, updates: Partial<Rate>): Promise<Rate | undefined>;
+
   // Optional seed data method
   seedData?(): Promise<void>;
 }
@@ -59,6 +65,7 @@ export class MemStorage implements IStorage {
   private requests: Map<string, Request>;
   private messages: Map<string, Message>;
   private chatbotConversations: Map<string, ChatbotConversation[]>;
+  private rates: Map<string, Rate>;
 
   constructor() {
     this.users = new Map();
@@ -66,6 +73,7 @@ export class MemStorage implements IStorage {
     this.requests = new Map();
     this.messages = new Map();
     this.chatbotConversations = new Map();
+    this.rates = new Map();
 
     // Seed some initial data for testing (async, fire and forget)
     this.seedData();
@@ -91,7 +99,7 @@ export class MemStorage implements IStorage {
     // Seed junkshop user
     const junkshop: User = {
       id: "junkshop-1",
-      name: "Caniezo Junkshop",
+      name: "test",
       email: "test@example.com",
       phone: "+63 917 765 4321",
       address: "456 Burnham Park Area, Baguio City",
@@ -241,6 +249,29 @@ export class MemStorage implements IStorage {
       },
     ];
     messages.forEach((msg) => this.messages.set(msg.id, msg));
+
+    // Seed rates
+    const rates: Rate[] = [
+      { id: randomUUID(), material: "White Paper (used)", price: "₱8.00 per kilo", icon: "📄", category: "Paper", createdAt: new Date() },
+      { id: randomUUID(), material: "Cartons (Corrugated/Brown)", price: "₱2.50 per kilo", icon: "📦", category: "Paper", createdAt: new Date() },
+      { id: randomUUID(), material: "Assorted/Mixed Paper", price: "₱1.50 per kilo", icon: "📰", category: "Paper", createdAt: new Date() },
+      { id: randomUUID(), material: "Newspaper", price: "₱4.00 per kilo", icon: "📰", category: "Paper", createdAt: new Date() },
+      { id: randomUUID(), material: "PET Bottle (Clean)", price: "₱16.00 per kilo", icon: "🍾", category: "Plastic", createdAt: new Date() },
+      { id: randomUUID(), material: "PET Bottle (Unclean)", price: "₱12.00 per kilo", icon: "🍾", category: "Plastic", createdAt: new Date() },
+      { id: randomUUID(), material: "Aluminum Cans", price: "₱50.00 per kilo", icon: "🥫", category: "Metal", createdAt: new Date() },
+      { id: randomUUID(), material: "Plastic HDPE", price: "₱10.00 per kilo", icon: "♻️", category: "Plastic", createdAt: new Date() },
+      { id: randomUUID(), material: "Plastic LDPE", price: "₱5.00 per kilo", icon: "♻️", category: "Plastic", createdAt: new Date() },
+      { id: randomUUID(), material: "Copper Wire (Class A)", price: "₱300.00 per kilo", icon: "🔌", category: "Metal", createdAt: new Date() },
+      { id: randomUUID(), material: "Copper Wire (Class B)", price: "₱250.00 per kilo", icon: "🔌", category: "Metal", createdAt: new Date() },
+      { id: randomUUID(), material: "Steel/Iron Alloys", price: "₱9.00 per kilo", icon: "⚙️", category: "Metal", createdAt: new Date() },
+      { id: randomUUID(), material: "Stainless Steel", price: "₱60.00 per kilo", icon: "⚙️", category: "Metal", createdAt: new Date() },
+      { id: randomUUID(), material: "Tin Can (Lata)", price: "₱7.00 per kilo", icon: "🥫", category: "Metal", createdAt: new Date() },
+      { id: randomUUID(), material: "Glass Cullets", price: "₱1.00 per kilo", icon: "🍷", category: "Glass", createdAt: new Date() },
+      { id: randomUUID(), material: "Old Diskette", price: "₱8.00 each", icon: "💿", category: "Electronics", createdAt: new Date() },
+      { id: randomUUID(), material: "Ink Jet Cartridge", price: "₱100-300 each", icon: "🖨️", category: "Electronics", createdAt: new Date() },
+      { id: randomUUID(), material: "Car Battery", price: "₱100.00 each", icon: "🔋", category: "Hazardous", createdAt: new Date() },
+    ];
+    rates.forEach((rate) => this.rates.set(rate.id, rate));
   }
 
   // Users
@@ -421,6 +452,19 @@ export class MemStorage implements IStorage {
     existing.push(conversation);
     this.chatbotConversations.set(conv.userId, existing);
     return conversation;
+  }
+
+  // Rates
+  async getRates(): Promise<Rate[]> {
+    return Array.from(this.rates.values());
+  }
+
+  async updateRate(id: string, updates: Partial<Rate>): Promise<Rate | undefined> {
+    const rate = this.rates.get(id);
+    if (!rate) return undefined;
+    const updated = { ...rate, ...updates };
+    this.rates.set(id, updated);
+    return updated;
   }
 }
 

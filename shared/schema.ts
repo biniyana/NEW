@@ -81,6 +81,16 @@ export const chatbotConversations = pgTable("chatbot_conversations", {
   timestamp: timestamp("timestamp").defaultNow(),
 });
 
+// Market rates for recyclables
+export const rates = pgTable("rates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  material: text("material").notNull(),
+  price: text("price").notNull(),
+  icon: text("icon").default("📦"),
+  category: text("category").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -114,9 +124,17 @@ export const insertChatbotConversationSchema = createInsertSchema(chatbotConvers
   timestamp: true,
 });
 
+export const insertRateSchema = createInsertSchema(rates).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+
+export type InsertRate = z.infer<typeof insertRateSchema>;
+export type Rate = typeof rates.$inferSelect;
 
 export type InsertItem = z.infer<typeof insertItemSchema>;
 export type Item = typeof items.$inferSelect;
