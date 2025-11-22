@@ -11,6 +11,7 @@ import {
   type InsertChatbotConversation,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { SupabaseStorage } from "./supabaseStorage";
 
 export interface IStorage {
   // Users
@@ -47,6 +48,9 @@ export interface IStorage {
   // Chatbot conversations
   getChatbotConversation(userId: string): Promise<ChatbotConversation[]>;
   createChatbotConversation(conv: InsertChatbotConversation): Promise<ChatbotConversation>;
+
+  // Optional seed data method
+  seedData?(): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -363,4 +367,15 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// Use Supabase storage if credentials are available, otherwise fall back to MemStorage
+let storage: IStorage;
+
+if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+  storage = new SupabaseStorage();
+  // Initialize seed data asynchronously (fire and forget)
+  storage.seedData?.().catch((err) => console.error("Failed to seed Supabase data:", err));
+} else {
+  storage = new MemStorage();
+}
+
+export { storage };
