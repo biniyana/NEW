@@ -178,17 +178,20 @@ export class SupabaseStorage implements IStorage {
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("users")
       .select("*")
       .eq("email", email)
       .single();
+    if (error && error.code !== "PGRST116") {
+      throw new Error(`Failed to get user: ${error.message}`);
+    }
     return data || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("users")
       .insert({
         id,
@@ -196,6 +199,8 @@ export class SupabaseStorage implements IStorage {
       })
       .select()
       .single();
+    if (error) throw new Error(`Failed to create user: ${error.message}`);
+    if (!data) throw new Error("Failed to create user: No data returned");
     return data;
   }
 
@@ -243,7 +248,7 @@ export class SupabaseStorage implements IStorage {
 
   async createItem(insertItem: InsertItem): Promise<Item> {
     const id = randomUUID();
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("items")
       .insert({
         id,
@@ -254,6 +259,8 @@ export class SupabaseStorage implements IStorage {
       })
       .select()
       .single();
+    if (error) throw new Error(`Failed to create item: ${error.message}`);
+    if (!data) throw new Error("Failed to create item: No data returned");
     return data;
   }
 
@@ -313,7 +320,7 @@ export class SupabaseStorage implements IStorage {
 
   async createRequest(insertRequest: InsertRequest): Promise<Request> {
     const id = randomUUID();
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("requests")
       .insert({
         id,
@@ -325,7 +332,9 @@ export class SupabaseStorage implements IStorage {
       })
       .select()
       .single();
-    return this.mapRequest(data);
+    if (error) throw new Error(`Failed to create request: ${error.message}`);
+    if (!data) throw new Error("Failed to create request: No data returned");
+    return this.mapRequest(data)!;
   }
 
   async updateRequest(id: string, updates: Partial<Request>): Promise<Request | undefined> {
