@@ -92,11 +92,61 @@ export default function RequestsPage() {
 }
 
 function RequestCard({ request, isHousehold }: { request: RequestType; isHousehold: boolean }) {
+  const { toast } = useToast();
+  
   const statusColors: Record<string, "secondary" | "default" | "outline" | "destructive"> = {
     Pending: "secondary",
     Accepted: "default",
     Completed: "outline",
     Cancelled: "destructive",
+  };
+
+  const cancelMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("DELETE", `/api/requests/${request.id}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/requests"] });
+      toast({
+        title: "Request cancelled",
+        description: "Your request has been cancelled",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to cancel request",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const acceptMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("PATCH", `/api/requests/${request.id}`, { status: "Accepted" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/requests"] });
+      toast({
+        title: "Request accepted",
+        description: "You've accepted this collection request",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to accept request",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAction = () => {
+    if (isHousehold) {
+      cancelMutation.mutate();
+    } else {
+      acceptMutation.mutate();
+    }
   };
 
   return (
@@ -127,8 +177,16 @@ function RequestCard({ request, isHousehold }: { request: RequestType; isHouseho
       </CardContent>
       {request.status === "Pending" && (
         <CardFooter>
-          <Button className="w-full" variant="outline" data-testid={`button-action-${request.id}`}>
-            {isHousehold ? "Cancel Request" : "Accept Request"}
+          <Button 
+            className="w-full" 
+            variant="outline" 
+            onClick={handleAction}
+            disabled={cancelMutation.isPending || acceptMutation.isPending}
+            data-testid={`button-action-${request.id}`}
+          >
+            {cancelMutation.isPending || acceptMutation.isPending 
+              ? (isHousehold ? "Cancelling..." : "Accepting...") 
+              : (isHousehold ? "Cancel Request" : "Accept Request")}
           </Button>
         </CardFooter>
       )}
