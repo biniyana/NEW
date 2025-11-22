@@ -145,7 +145,43 @@ export default function Dashboard() {
 }
 
 function DashboardHome({ currentUser }: { currentUser: UserType }) {
+  const [requestCount, setRequestCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
   const isHousehold = currentUser.userType === "household";
+
+  // Fetch real statistics
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        // Fetch requests
+        const requestsRes = await fetch("/api/requests");
+        const allRequests = await requestsRes.json();
+        
+        // Count active requests for current user
+        const activeReqs = allRequests.filter((req: any) => {
+          const isRequester = req.requesterId === currentUser.id;
+          const isResponder = req.responderId === currentUser.id;
+          const isActive = req.status === "Pending" || req.status === "Accepted";
+          return (isRequester || isResponder) && isActive;
+        }).length;
+        setRequestCount(activeReqs);
+
+        // Fetch messages
+        const messagesRes = await fetch("/api/messages");
+        const allMessages = await messagesRes.json();
+        
+        // Count unread messages for current user
+        const unread = allMessages.filter((msg: any) => 
+          msg.recipientId === currentUser.id && !msg.isRead
+        ).length;
+        setUnreadCount(unread);
+      } catch (error) {
+        console.error("Failed to fetch dashboard stats:", error);
+      }
+    };
+
+    fetchStats();
+  }, [currentUser.id]);
 
   return (
     <div className="space-y-6">
@@ -165,7 +201,7 @@ function DashboardHome({ currentUser }: { currentUser: UserType }) {
                 <p className="text-sm text-muted-foreground mb-1">
                   {isHousehold ? "Active Requests" : "Pending Collections"}
                 </p>
-                <p className="text-3xl font-bold text-foreground" data-testid="stat-requests">3</p>
+                <p className="text-3xl font-bold text-foreground" data-testid="stat-requests">{requestCount}</p>
               </div>
               <Package className="w-10 h-10 text-primary" />
             </div>
@@ -177,7 +213,7 @@ function DashboardHome({ currentUser }: { currentUser: UserType }) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Unread Messages</p>
-                <p className="text-3xl font-bold text-foreground" data-testid="stat-messages">5</p>
+                <p className="text-3xl font-bold text-foreground" data-testid="stat-messages">{unreadCount}</p>
               </div>
               <MessageCircle className="w-10 h-10 text-primary" />
             </div>
@@ -189,7 +225,7 @@ function DashboardHome({ currentUser }: { currentUser: UserType }) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Rating</p>
-                <p className="text-3xl font-bold text-foreground" data-testid="stat-rating">4.8</p>
+                <p className="text-3xl font-bold text-foreground" data-testid="stat-rating">{currentUser.rating || "N/A"}</p>
               </div>
               <div className="text-4xl">⭐</div>
             </div>
