@@ -2,16 +2,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 const rateList = [
-  { material: "Plastic Bottles (PET)", price: "₱3 per piece", icon: "🍾", category: "Plastic" },
-  { material: "Newspapers", price: "₱8 per kilo", icon: "📰", category: "Paper" },
-  { material: "Aluminum Cans", price: "₱4 per piece", icon: "🥫", category: "Metal" },
-  { material: "Glass Bottles", price: "₱2 per piece", icon: "🍷", category: "Glass" },
-  { material: "Cardboard", price: "₱6 per kilo", icon: "📦", category: "Paper" },
-  { material: "Copper Wire", price: "₱350 per kilo", icon: "🔌", category: "Metal" },
-  { material: "Steel/Iron", price: "₱15 per kilo", icon: "⚙️", category: "Metal" },
-  { material: "White Paper", price: "₱12 per kilo", icon: "📄", category: "Paper" },
-  { material: "Mixed Plastic", price: "₱5 per kilo", icon: "♻️", category: "Plastic" },
-  { material: "Batteries", price: "₱20 per kilo", icon: "🔋", category: "Hazardous" },
+  { material: "White Paper (used)", price: "₱8.00 per kilo", icon: "📄", category: "Paper" },
+  { material: "Cartons (Corrugated/Brown)", price: "₱2.50 per kilo", icon: "📦", category: "Paper" },
+  { material: "Assorted/Mixed Paper", price: "₱1.50 per kilo", icon: "📰", category: "Paper" },
+  { material: "Newspaper", price: "₱4.00 per kilo", icon: "📰", category: "Paper" },
+  { material: "PET Bottle (Clean)", price: "₱16.00 per kilo", icon: "🍾", category: "Plastic" },
+  { material: "PET Bottle (Unclean)", price: "₱12.00 per kilo", icon: "🍾", category: "Plastic" },
+  { material: "Aluminum Cans", price: "₱50.00 per kilo", icon: "🥫", category: "Metal" },
+  { material: "Plastic HDPE", price: "₱10.00 per kilo", icon: "♻️", category: "Plastic" },
+  { material: "Plastic LDPE", price: "₱5.00 per kilo", icon: "♻️", category: "Plastic" },
+  { material: "Copper Wire (Class A)", price: "₱300.00 per kilo", icon: "🔌", category: "Metal" },
+  { material: "Copper Wire (Class B)", price: "₱250.00 per kilo", icon: "🔌", category: "Metal" },
+  { material: "Steel/Iron Alloys", price: "₱9.00 per kilo", icon: "⚙️", category: "Metal" },
+  { material: "Stainless Steel", price: "₱60.00 per kilo", icon: "⚙️", category: "Metal" },
+  { material: "Tin Can (Lata)", price: "₱7.00 per kilo", icon: "🥫", category: "Metal" },
+  { material: "Glass Cullets", price: "₱1.00 per kilo", icon: "🍷", category: "Glass" },
+  { material: "Old Diskette", price: "₱8.00 each", icon: "💿", category: "Electronics" },
+  { material: "Ink Jet Cartridge", price: "₱100-300 each", icon: "🖨️", category: "Electronics" },
+  { material: "Car Battery", price: "₱100.00 each", icon: "🔋", category: "Hazardous" },
 ];
 
 export default function RatesPage() {
