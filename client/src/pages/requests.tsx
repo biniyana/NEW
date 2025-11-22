@@ -103,7 +103,7 @@ function RequestCard({ request, isHousehold }: { request: RequestType; isHouseho
 
   const cancelMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("DELETE", `/api/requests/${request.id}`, {});
+      return await apiRequest("PATCH", `/api/requests/${request.id}`, { status: "Cancelled" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/requests"] });

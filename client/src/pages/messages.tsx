@@ -110,77 +110,90 @@ export default function MessagesPage() {
       </div>
 
       <div className="grid md:grid-cols-3 gap-6 h-[600px]">
-        {/* Conversations List */}
-        <Card className="md:col-span-1">
-          <CardHeader className="pb-3">
-            <CardTitle>Conversations</CardTitle>
-            <div className="relative mt-4">
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search conversations..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-8"
-                data-testid="input-search-messages"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm("")}
-                  className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
-                  data-testid="button-clear-search"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[420px]">
-              {conversations.length === 0 ? (
-                <div className="p-8 text-center">
-                  <MessageCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-sm text-muted-foreground">No messages yet</p>
-                </div>
-              ) : filteredConversations.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Search className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-sm text-muted-foreground">No conversations found</p>
-                  <p className="text-xs text-muted-foreground mt-2">Try a different search term</p>
-                </div>
-              ) : (
-                filteredConversations.map((conv) => (
+        {/* Conversations List - Hidden on mobile when chat is open */}
+        {!selectedUser && (
+          <Card className="md:col-span-1 col-span-1 md:col-span-1">
+            <CardHeader className="pb-3">
+              <CardTitle>Conversations</CardTitle>
+              <div className="relative mt-4">
+                <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search conversations..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-8"
+                  data-testid="input-search-messages"
+                />
+                {searchTerm && (
                   <button
-                    key={conv.userId}
-                    onClick={() => setSelectedUser(conv.userId)}
-                    className={`w-full p-4 text-left hover-elevate border-b border-border ${
-                      selectedUser === conv.userId ? "bg-accent" : ""
-                    }`}
-                    data-testid={`conversation-${conv.userId}`}
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+                    data-testid="button-clear-search"
                   >
-                    <div className="flex items-start gap-3">
-                      <Avatar>
-                        <AvatarFallback>{conv.userName[0]}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-foreground truncate">{conv.userName}</p>
-                        <p className="text-sm text-muted-foreground truncate">{conv.lastMessage}</p>
-                      </div>
-                    </div>
+                    <X className="w-4 h-4" />
                   </button>
-                ))
-              )}
-            </ScrollArea>
-          </CardContent>
-        </Card>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ScrollArea className="h-[420px]">
+                {conversations.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <MessageCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-sm text-muted-foreground">No messages yet</p>
+                  </div>
+                ) : filteredConversations.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <Search className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-sm text-muted-foreground">No conversations found</p>
+                    <p className="text-xs text-muted-foreground mt-2">Try a different search term</p>
+                  </div>
+                ) : (
+                  filteredConversations.map((conv) => (
+                    <button
+                      key={conv.userId}
+                      onClick={() => setSelectedUser(conv.userId)}
+                      className={`w-full p-4 text-left hover-elevate border-b border-border ${
+                        selectedUser === conv.userId ? "bg-accent" : ""
+                      }`}
+                      data-testid={`conversation-${conv.userId}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <Avatar>
+                          <AvatarFallback>{conv.userName[0]}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-foreground truncate">{conv.userName}</p>
+                          <p className="text-sm text-muted-foreground truncate">{conv.lastMessage}</p>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Chat Area */}
-        <Card className="md:col-span-2">
+        <Card className={selectedUser ? "col-span-1 md:col-span-3" : "md:col-span-2"}>
           {selectedUser ? (
             <>
-              <CardHeader>
-                <CardTitle>
-                  {conversations.find((c) => c.userId === selectedUser)?.userName}
-                </CardTitle>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle>
+                    {conversations.find((c) => c.userId === selectedUser)?.userName}
+                  </CardTitle>
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => setSelectedUser(null)}
+                    className="md:hidden"
+                    data-testid="button-back-conversations"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 <ScrollArea className="h-[440px] p-4">
