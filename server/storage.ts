@@ -285,12 +285,13 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
+    const parseCoord = (v: any) => (v === undefined || v === null ? null : Number(v));
     const user: User = {
       ...insertUser,
       id,
       rating: insertUser.rating || "0",
-      latitude: null,
-      longitude: null,
+      latitude: parseCoord(insertUser.latitude),
+      longitude: parseCoord(insertUser.longitude),
       createdAt: new Date(),
     };
     this.users.set(id, user);
