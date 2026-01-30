@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import MapPinner from "@/components/MapPinner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { User as UserType, Item, Request } from "@shared/schema";
 import { MapPin, Mail, Phone, Star, User } from "lucide-react";
@@ -36,6 +38,10 @@ export default function ProfilePage() {
     }
   }, []);
 
+  const [isLocationOpen, setIsLocationOpen] = useState(false);
+  const [tempLat, setTempLat] = useState<number | null>(null);
+  const [tempLng, setTempLng] = useState<number | null>(null);
+
   const handleSave = () => {
     if (currentUser) {
       localStorage.setItem("user", JSON.stringify(currentUser));
@@ -44,6 +50,25 @@ export default function ProfilePage() {
         description: "Your changes have been saved",
       });
       setIsEditing(false);
+    }
+  };
+
+  const handleSaveLocation = async () => {
+    if (!currentUser || tempLat === null || tempLng === null) return;
+    try {
+      const res = await fetch(`/api/users/${currentUser.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ latitude: tempLat, longitude: tempLng }),
+      });
+      const updated = await res.json();
+      const newUser = { ...currentUser, latitude: tempLat, longitude: tempLng } as UserType;
+      setCurrentUser(newUser);
+      localStorage.setItem("user", JSON.stringify(newUser));
+      setIsLocationOpen(false);
+      toast({ title: "Location saved", description: "Shop location updated" });
+    } catch (err) {
+      toast({ title: "Save failed", description: "Could not save location", variant: "destructive" });
     }
   };
 
@@ -193,6 +218,35 @@ export default function ProfilePage() {
               >
                 Cancel
               </Button>
+            )}
+
+            {currentUser.userType === 'junkshop' && (
+              <div className="mt-4">
+                <Dialog open={isLocationOpen} onOpenChange={setIsLocationOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm">Set Shop Location</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Set Shop Location</DialogTitle>
+                    </DialogHeader>
+                    <div className="mt-4">
+                      <MapPinner
+                        initialLatitude={currentUser.latitude ?? undefined}
+                        initialLongitude={currentUser.longitude ?? undefined}
+                        onLocationSelect={(lat, lng) => {
+                          setTempLat(lat);
+                          setTempLng(lng);
+                        }}
+                      />
+                      <div className="flex gap-2 mt-4">
+                        <Button onClick={handleSaveLocation} className="flex-1">Save Location</Button>
+                        <Button variant="outline" onClick={() => setIsLocationOpen(false)} className="flex-1">Close</Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
             )}
           </CardContent>
         </Card>
