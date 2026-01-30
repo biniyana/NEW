@@ -95,6 +95,9 @@ export const rates = pgTable("rates", {
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
+}).extend({
+  latitude: z.union([z.number(), z.string()]).optional(),
+  longitude: z.union([z.number(), z.string()]).optional(),
 });
 
 export const insertItemSchema = createInsertSchema(items).omit({
