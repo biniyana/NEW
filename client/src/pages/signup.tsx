@@ -6,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Recycle, Home, Store } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import MapPinner from "@/components/MapPinner";
+import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -20,6 +22,9 @@ export default function Signup() {
     address: "",
     password: "",
   });
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [showMapPinner, setShowMapPinner] = useState(false);
 
   const signupMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -53,7 +58,18 @@ export default function Signup() {
       });
       return;
     }
-    signupMutation.mutate({ ...formData, userType });
+    if (userType === 'junkshop' && (latitude === null || longitude === null)) {
+      toast({ title: 'Set shop location', description: 'Please pin your junkshop location before signing up', variant: 'destructive' });
+      return;
+    }
+
+    const payload: any = { ...formData, userType };
+    if (latitude !== null && longitude !== null) {
+      payload.latitude = latitude;
+      payload.longitude = longitude;
+    }
+
+    signupMutation.mutate(payload);
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -151,6 +167,31 @@ export default function Signup() {
                 data-testid="input-address"
               />
               <p className="text-xs text-muted-foreground">📍 Used for location-based matching</p>
+
+              {userType === 'junkshop' && (
+                <div className="mt-2">
+                  <Button size="sm" variant="outline" onClick={() => setShowMapPinner((s) => !s)}>
+                    {showMapPinner ? 'Hide Location Pin' : 'Set Shop Location on Map'}
+                  </Button>
+
+                  {showMapPinner && (
+                    <div className="mt-3">
+                      <MapPinner
+                        initialLatitude={latitude ?? undefined}
+                        initialLongitude={longitude ?? undefined}
+                        onLocationSelect={(lat, lng) => {
+                          setLatitude(lat);
+                          setLongitude(lng);
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {latitude !== null && longitude !== null && (
+                    <p className="text-sm text-muted-foreground mt-2">Pinned location: {latitude.toFixed(6)}, {longitude.toFixed(6)}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
