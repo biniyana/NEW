@@ -26,6 +26,7 @@ export const items = pgTable("items", {
   price: text("price").notNull(),
   description: text("description"),
   imageUrl: text("image_url"),
+  imageUrls: text("image_urls"),
   emoji: text("emoji").default("📦"),
   sellerId: varchar("seller_id").notNull(),
   sellerName: text("seller_name").notNull(),
@@ -103,6 +104,8 @@ export const insertUserSchema = createInsertSchema(users).omit({
 export const insertItemSchema = createInsertSchema(items).omit({
   id: true,
   createdAt: true,
+}).extend({
+  imageUrls: z.array(z.string()).optional(),
 });
 
 export const insertRequestSchema = createInsertSchema(requests).omit({
@@ -155,7 +158,7 @@ export type InsertChatbotConversation = z.infer<typeof insertChatbotConversation
 export type ChatbotConversation = typeof chatbotConversations.$inferSelect;
 
 // Rate list type (static data, not in database)
-export type Rate = {
+export type StaticRate = {
   material: string;
   price: string;
   icon: string;

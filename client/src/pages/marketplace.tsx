@@ -63,17 +63,19 @@ export default function MarketplacePage({ onNavigateToMessages }: MarketplacePag
             Buy and sell recyclable materials in Baguio City
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-add-item">
-              <Plus className="w-4 h-4 mr-2" />
-              Post Item
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <AddItemForm onClose={() => setIsDialogOpen(false)} />
-          </DialogContent>
-        </Dialog>
+        {!isJunkshop && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-add-item">
+                <Plus className="w-4 h-4 mr-2" />
+                Post Item
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <AddItemForm onClose={() => setIsDialogOpen(false)} />
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Category Filter */}
@@ -136,6 +138,7 @@ interface ItemCardProps {
 function ItemCard({ item, onNavigateToMessages }: ItemCardProps) {
   const { toast } = useToast();
   const currentUser: User | null = localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")!) : null;
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   
   const contactMutation = useMutation({
     mutationFn: async () => {
@@ -198,7 +201,32 @@ function ItemCard({ item, onNavigateToMessages }: ItemCardProps) {
   return (
     <Card className="hover-elevate" data-testid={`card-item-${item.id}`}>
       <CardHeader>
-        <div className="text-5xl mb-2">{item.emoji}</div>
+        {item.imageUrls ? (
+          (() => {
+            const imgs: string[] = typeof item.imageUrls === "string" ? JSON.parse(item.imageUrls) : (item.imageUrls as any || []);
+            return (
+              <>
+                <div className="grid grid-cols-3 gap-1 mb-2">
+                  {imgs.slice(0, 3).map((u: string, i: number) => (
+                    <div key={i} className="w-full h-16 overflow-hidden rounded cursor-pointer" onClick={() => setPreviewImage(u)}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={u} className="w-full h-full object-cover" alt={`thumb-${i}`} />
+                    </div>
+                  ))}
+                </div>
+                {previewImage && (
+                  <Dialog open={true} onOpenChange={() => setPreviewImage(null)}>
+                    <DialogContent>
+                      <img src={previewImage} alt="preview" className="w-full h-auto max-h-[70vh] object-contain" />
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </>
+            );
+          })()
+        ) : (
+          <div className="text-5xl mb-2">{item.emoji}</div>
+        )}
         <CardTitle className="text-lg">{item.title}</CardTitle>
         <Badge variant="secondary">{item.category}</Badge>
       </CardHeader>
@@ -239,7 +267,11 @@ function AddItemForm({ onClose }: AddItemFormProps) {
     price: "",
     description: "",
     emoji: "📦",
+    imageUrls: [] as string[],
   });
+  const [uploading, setUploading] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const addItemMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -271,6 +303,7 @@ function AddItemForm({ onClose }: AddItemFormProps) {
       sellerId: currentUser.id,
       sellerName: currentUser.name,
       status: "available",
+      imageUrls: formData.imageUrls,
     });
   };
 
@@ -334,6 +367,63 @@ function AddItemForm({ onClose }: AddItemFormProps) {
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             data-testid="input-description"
           />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="images">Photos (up to 5)</Label>
+          <input
+            id="images"
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={async (e) => {
+              setUploadError(null);
+              const files = Array.from(e.target.files || []);
+              if (files.length === 0) return;
+              if (files.length + formData.imageUrls.length > 5) {
+                setUploadError("Maximum 5 images allowed");
+                return;
+              }
+              setUploading(true);
+              try {
+                const uploaded: string[] = [];
+                for (const file of files) {
+                  const reader = new FileReader();
+                  const dataUrl: string = await new Promise((resolve, reject) => {
+                    reader.onload = () => resolve(String(reader.result));
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                  });
+                  const res = await fetch("/api/upload", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ filename: file.name, data: dataUrl }),
+                  });
+                  if (!res.ok) throw new Error((await res.json()).message || "Upload failed");
+                  const json = await res.json();
+                  uploaded.push(json.url);
+                }
+                setFormData({ ...formData, imageUrls: [...formData.imageUrls, ...uploaded] });
+              } catch (err: any) {
+                console.error("Upload error", err);
+                setUploadError(err.message || "Upload failed");
+              } finally {
+                setUploading(false);
+              }
+            }}
+          />
+          {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
+
+          {formData.imageUrls.length > 0 && (
+            <div className="flex gap-2 mt-2">
+              {formData.imageUrls.map((url, idx) => (
+                <div key={idx} className="w-16 h-16 rounded overflow-hidden cursor-pointer" onClick={() => setPreviewIndex(idx)}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt={`preview-${idx}`} className="w-full h-full object-cover" />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2">

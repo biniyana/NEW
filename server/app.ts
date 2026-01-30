@@ -34,6 +34,15 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: false }));
 
+// Serve uploaded files
+import path from "node:path";
+const uploadsDir = path.resolve(process.cwd(), "public", "uploads");
+import fs from "node:fs";
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use("/uploads", express.static(uploadsDir));
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -86,11 +95,12 @@ export default async function runApp(
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+  const listenOptions: any = { port, host: "0.0.0.0" };
+  if (process.platform !== "win32") {
+    listenOptions.reusePort = true;
+  }
+
+  server.listen(listenOptions, () => {
     log(`serving on port ${port}`);
   });
 }

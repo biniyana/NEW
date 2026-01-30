@@ -76,10 +76,10 @@ export class MemStorage implements IStorage {
     this.rates = new Map();
 
     // Seed some initial data for testing (async, fire and forget)
-    this.seedData();
+    void this.seedData();
   }
 
-  private seedData(): void {
+  async seedData(): Promise<void> {
     // Seed household user
     const household: User = {
       id: "household-1",
@@ -120,6 +120,7 @@ export class MemStorage implements IStorage {
       price: "₱150",
       description: "Clean PET plastic bottles, various sizes",
       imageUrl: null,
+      imageUrls: null,
       emoji: "🍾",
       sellerId: junkshop.id,
       sellerName: junkshop.name,
@@ -133,6 +134,7 @@ export class MemStorage implements IStorage {
       price: "₱80",
       description: "Bundle of newspapers, approximately 10kg",
       imageUrl: null,
+      imageUrls: null,
       emoji: "📰",
       sellerId: junkshop.id,
       sellerName: junkshop.name,
@@ -146,6 +148,7 @@ export class MemStorage implements IStorage {
       price: "₱120",
       description: "Crushed aluminum soda cans",
       imageUrl: null,
+      imageUrls: null,
       emoji: "🥫",
       sellerId: junkshop.id,
       sellerName: junkshop.name,
@@ -161,6 +164,7 @@ export class MemStorage implements IStorage {
       price: "₱40",
       description: "Clean glass bottles, mostly liquor bottles",
       imageUrl: null,
+      imageUrls: null,
       emoji: "🍷",
       sellerId: household.id,
       sellerName: household.name,
@@ -174,6 +178,7 @@ export class MemStorage implements IStorage {
       price: "₱25",
       description: "Flattened cardboard boxes from deliveries",
       imageUrl: null,
+      imageUrls: null,
       emoji: "📦",
       sellerId: household.id,
       sellerName: household.name,
@@ -187,6 +192,7 @@ export class MemStorage implements IStorage {
       price: "₱35",
       description: "Clean plastic food containers",
       imageUrl: null,
+      imageUrls: null,
       emoji: "🍾",
       sellerId: household.id,
       sellerName: household.name,
@@ -285,7 +291,7 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const parseCoord = (v: any) => (v === undefined || v === null ? null : Number(v));
+    const parseCoord = (v: any) => (v === undefined || v === null ? null : String(Number(v)));
     const user: User = {
       ...insertUser,
       id,
@@ -301,7 +307,13 @@ export class MemStorage implements IStorage {
   async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
     const user = this.users.get(id);
     if (!user) return undefined;
-    const updated = { ...user, ...updates };
+    const parseCoord = (v: any) => (v === undefined || v === null ? null : String(Number(v)));
+    const updated: User = {
+      ...user,
+      ...updates,
+      latitude: updates.latitude !== undefined ? parseCoord((updates as any).latitude) : user.latitude,
+      longitude: updates.longitude !== undefined ? parseCoord((updates as any).longitude) : user.longitude,
+    };
     this.users.set(id, updated);
     return updated;
   }
@@ -331,16 +343,20 @@ export class MemStorage implements IStorage {
 
   async createItem(insertItem: InsertItem): Promise<Item> {
     const id = randomUUID();
+    const imageUrlsStr = insertItem.imageUrls ? JSON.stringify(insertItem.imageUrls) : null;
     const item: Item = {
       ...insertItem,
       id,
       status: insertItem.status || "available",
       emoji: insertItem.emoji || "📦",
       imageUrl: insertItem.imageUrl || null,
+      // store imageUrls as JSON string to match table (text)
+      imageUrls: imageUrlsStr,
+      description: insertItem.description ?? null,
       createdAt: new Date(),
-    };
-    this.items.set(id, item);
-    return item;
+    } as unknown as Item;
+    this.items.set(id, item as Item);
+    return item as Item;
   }
 
   async updateItem(id: string, updates: Partial<Item>): Promise<Item | undefined> {

@@ -3,8 +3,20 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertUserSchema, insertItemSchema, insertRequestSchema, insertMessageSchema, insertChatbotConversationSchema, insertRateSchema } from "@shared/schema";
 import OpenAI from "openai";
+import path from "node:path";
+import fs from "node:fs";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let openai: OpenAI | undefined;
+try {
+  if (process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  } else {
+    console.warn("OPENAI_API_KEY not set; chatbot will use fallback responses");
+  }
+} catch (err) {
+  console.warn("OpenAI client init failed, using fallback chatbot:", err);
+  openai = undefined;
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
@@ -45,6 +57,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update user (patch)
+  app.patch("/api/users/:id", async (req, res) => {
+    try {
+      const updated = await storage.updateUser(req.params.id, req.body);
+      if (!updated) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      const { password, ...userWithoutPassword } = updated;
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to update user" });
+    }
+  });
+
+  // Users routes
+  app.get("/api/users", async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      const sanitized = users.map(({ password, ...rest }) => rest);
+      res.json(sanitized);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch users" });
+    }
+  });
+
+  app.get("/api/users/:id", async (req, res) => {
+    try {
+      const user = await storage.getUser(req.params.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      const { password, ...rest } = user;
+      res.json(rest);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch user" });
+    }
+  });
+
+  app.patch("/api/users/:id", async (req, res) => {
+    try {
+      const updates: any = { ...req.body };
+      if (updates.latitude !== undefined) updates.latitude = updates.latitude === null ? null : Number(updates.latitude);
+      if (updates.longitude !== undefined) updates.longitude = updates.longitude === null ? null : Number(updates.longitude);
+      const updated = await storage.updateUser(req.params.id, updates);
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      const { password, ...rest } = updated;
+      res.json(rest);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to update user" });
+    }
+  });
+
   // Items routes
   app.get("/api/items", async (req, res) => {
     try {
@@ -71,10 +133,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/items", async (req, res) => {
     try {
       const itemData = insertItemSchema.parse(req.body);
+      // Server-side guard: only household users may post items
+      const seller = await storage.getUser(itemData.sellerId);
+      if (!seller) return res.status(400).json({ message: "Seller not found" });
+      if (seller.userType === "junkshop") {
+        return res.status(403).json({ message: "Junkshop users are not allowed to post marketplace items" });
+      }
       const item = await storage.createItem(itemData);
       res.status(201).json(item);
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Failed to create item" });
+    }
+  });
+
+  // Upload endpoint for images (accepts base64 data URL)
+  app.post("/api/upload", async (req, res) => {
+    try {
+      const { filename, data } = req.body;
+      if (!filename || !data) return res.status(400).json({ message: "Missing filename or data" });
+
+      const match = (data as string).match(/^data:(.+);base64,(.+)$/);
+      if (!match) return res.status(400).json({ message: "Invalid data URL" });
+
+      const [, mimeType, base64Data] = match;
+      const ext = mimeType.split("/")[1] || "bin";
+      const safeName = `${Date.now()}-${filename.replace(/[^a-z0-9.-]/gi, "_")}.${ext}`;
+      const uploadPath = path.resolve(process.cwd(), "public", "uploads", safeName);
+      await fs.promises.writeFile(uploadPath, Buffer.from(base64Data, "base64"));
+
+      const url = `/uploads/${safeName}`;
+      res.status(201).json({ url });
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      res.status(500).json({ message: error.message || "Upload failed" });
     }
   });
 

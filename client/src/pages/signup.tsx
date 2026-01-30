@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Recycle, Home, Store } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import MapPinner from "@/components/MapPinner";
-import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 

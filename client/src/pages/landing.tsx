@@ -2,6 +2,8 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Recycle, Home, Store, MessageCircle } from "lucide-react";
+import RecyclingMapSection from "@/components/RecyclingMapSection";
+import TransactionAnalytics from "@/components/TransactionAnalytics";
 
 export default function Landing() {
   return (
@@ -97,6 +99,20 @@ export default function Landing() {
                 </p>
               </CardContent>
             </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Home Map & Analytics */}
+      <section className="py-16 px-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-8">
+            <div>
+              <RecyclingMapSection />
+            </div>
+            <div>
+              <TransactionAnalytics />
+            </div>
           </div>
         </div>
       </section>

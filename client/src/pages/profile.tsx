@@ -62,7 +62,7 @@ export default function ProfilePage() {
         body: JSON.stringify({ latitude: tempLat, longitude: tempLng }),
       });
       const updated = await res.json();
-      const newUser = { ...currentUser, latitude: tempLat, longitude: tempLng } as UserType;
+      const newUser = { ...currentUser, latitude: String(tempLat), longitude: String(tempLng) } as UserType;
       setCurrentUser(newUser);
       localStorage.setItem("user", JSON.stringify(newUser));
       setIsLocationOpen(false);
@@ -232,8 +232,8 @@ export default function ProfilePage() {
                     </DialogHeader>
                     <div className="mt-4">
                       <MapPinner
-                        initialLatitude={currentUser.latitude ?? undefined}
-                        initialLongitude={currentUser.longitude ?? undefined}
+                        initialLatitude={currentUser.latitude ? Number(currentUser.latitude) : undefined}
+                        initialLongitude={currentUser.longitude ? Number(currentUser.longitude) : undefined}
                         onLocationSelect={(lat, lng) => {
                           setTempLat(lat);
                           setTempLng(lng);

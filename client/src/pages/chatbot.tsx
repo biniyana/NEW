@@ -195,10 +195,10 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
                             isUser ? "text-primary-foreground/70" : "text-muted-foreground"
                           }`}
                         >
-                          {new Date(conv.timestamp).toLocaleTimeString([], {
+                          {conv.timestamp ? new Date(conv.timestamp).toLocaleTimeString([], {
                             hour: "2-digit",
                             minute: "2-digit",
-                          })}
+                          }) : ""}
                         </p>
                       </div>
                     </div>

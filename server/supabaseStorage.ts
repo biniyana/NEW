@@ -10,6 +10,7 @@ import {
   type InsertMessage,
   type ChatbotConversation,
   type InsertChatbotConversation,
+  type Rate,
 } from "@shared/schema";
 import { IStorage } from "./storage";
 import { randomUUID } from "crypto";
@@ -333,12 +334,12 @@ export class SupabaseStorage implements IStorage {
       .select("*")
       .eq("id", id)
       .single();
-    return this.mapRequest(data);
+    return this.mapRequest(data)!;
   }
 
   async getRequests(): Promise<Request[]> {
     const { data } = await supabase.from("requests").select("*");
-    return (data || []).map(this.mapRequest);
+    return (data || []).map((d: any) => this.mapRequest(d)!);
   }
 
   async getRequestsByRequester(requesterId: string): Promise<Request[]> {
@@ -346,7 +347,7 @@ export class SupabaseStorage implements IStorage {
       .from("requests")
       .select("*")
       .eq("requester_id", requesterId);
-    return (data || []).map(this.mapRequest);
+    return (data || []).map((d: any) => this.mapRequest(d)!);
   }
 
   async getRequestsByResponder(responderId: string): Promise<Request[]> {
@@ -354,7 +355,7 @@ export class SupabaseStorage implements IStorage {
       .from("requests")
       .select("*")
       .eq("responder_id", responderId);
-    return (data || []).map(this.mapRequest);
+    return (data || []).map((d: any) => this.mapRequest(d)!);
   }
 
   async createRequest(insertRequest: InsertRequest): Promise<Request> {
@@ -407,12 +408,12 @@ export class SupabaseStorage implements IStorage {
       .select("*")
       .eq("id", id)
       .single();
-    return this.mapMessage(data);
+    return this.mapMessage(data)!;
   }
 
   async getMessages(): Promise<Message[]> {
     const { data } = await supabase.from("messages").select("*");
-    return (data || []).map(this.mapMessage);
+    return (data || []).map((d: any) => this.mapMessage(d)!);
   }
 
   async getMessagesByUser(userId: string): Promise<Message[]> {
@@ -420,7 +421,7 @@ export class SupabaseStorage implements IStorage {
       .from("messages")
       .select("*")
       .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
-    return (data || []).map(this.mapMessage);
+    return (data || []).map((d: any) => this.mapMessage(d)!);
   }
 
   async createMessage(insertMessage: InsertMessage): Promise<Message> {
@@ -437,7 +438,7 @@ export class SupabaseStorage implements IStorage {
       })
       .select()
       .single();
-    return this.mapMessage(data);
+    return this.mapMessage(data)!;
   }
 
   async markMessageAsRead(id: string): Promise<Message | undefined> {
@@ -447,7 +448,7 @@ export class SupabaseStorage implements IStorage {
       .eq("id", id)
       .select()
       .single();
-    return this.mapMessage(data);
+    return this.mapMessage(data)!;
   }
 
   // Chatbot conversations
@@ -457,7 +458,7 @@ export class SupabaseStorage implements IStorage {
       .select("*")
       .eq("user_id", userId)
       .order("timestamp", { ascending: true });
-    return (data || []).map(this.mapChatbotConversation);
+    return (data || []).map((d: any) => this.mapChatbotConversation(d)!);
   }
 
   async createChatbotConversation(conv: InsertChatbotConversation): Promise<ChatbotConversation> {
@@ -471,7 +472,22 @@ export class SupabaseStorage implements IStorage {
       })
       .select()
       .single();
-    return this.mapChatbotConversation(data);
+    return this.mapChatbotConversation(data)!;
+  }
+
+  // Rates
+  async getRates(): Promise<Rate[]> {
+    const { data } = await supabase.from("rates").select("*");
+    return (data || []).map((d: any) => ({
+      ...d,
+      createdAt: d.created_at ? new Date(d.created_at) : null,
+    })) as Rate[];
+  }
+
+  async updateRate(id: string, updates: Partial<Rate>): Promise<Rate | undefined> {
+    const { data } = await supabase.from("rates").update(updates as any).eq("id", id).select().single();
+    if (!data) return undefined;
+    return { ...data, createdAt: data.created_at ? new Date(data.created_at) : null } as Rate;
   }
 
   // Helper methods to map Supabase snake_case to camelCase
