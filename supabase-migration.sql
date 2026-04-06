@@ -7,7 +7,6 @@ CREATE TABLE IF NOT EXISTS users (
   address TEXT NOT NULL,
   password TEXT NOT NULL,
   user_type TEXT NOT NULL,
-  rating TEXT DEFAULT '0',
   latitude NUMERIC(10, 7),
   longitude NUMERIC(10, 7),
   created_at TIMESTAMP DEFAULT NOW()
@@ -20,7 +19,7 @@ CREATE TABLE IF NOT EXISTS items (
   category TEXT NOT NULL,
   price TEXT NOT NULL,
   description TEXT,
-  image_url TEXT,
+  image_urls TEXT,
   emoji TEXT DEFAULT '📦',
   seller_id VARCHAR NOT NULL,
   seller_name TEXT NOT NULL,
@@ -40,6 +39,7 @@ CREATE TABLE IF NOT EXISTS requests (
   responder_id VARCHAR,
   responder_name TEXT,
   date TEXT NOT NULL,
+  time TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -76,6 +76,22 @@ CREATE TABLE IF NOT EXISTS chatbot_conversations (
   timestamp TIMESTAMP DEFAULT NOW()
 );
 
+-- Create rates table (market pricing for recyclables)
+CREATE TABLE IF NOT EXISTS rates (
+  id VARCHAR PRIMARY KEY,
+  material TEXT NOT NULL,
+  price_per_kg TEXT NOT NULL,
+  unit TEXT DEFAULT 'kg',
+  icon TEXT DEFAULT '📦',
+  category TEXT,
+  junkshop_id VARCHAR NOT NULL,
+  junkshop_name TEXT NOT NULL,
+  seller_id VARCHAR,
+  seller_name TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  FOREIGN KEY (junkshop_id) REFERENCES users(id)
+);
+
 -- Create indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_items_seller_id ON items(seller_id);
@@ -85,3 +101,5 @@ CREATE INDEX IF NOT EXISTS idx_requests_responder_id ON requests(responder_id);
 CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id);
 CREATE INDEX IF NOT EXISTS idx_messages_receiver_id ON messages(receiver_id);
 CREATE INDEX IF NOT EXISTS idx_chatbot_conversations_user_id ON chatbot_conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_rates_junkshop_id ON rates(junkshop_id);
+CREATE INDEX IF NOT EXISTS idx_rates_seller_id ON rates(seller_id);

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { MapPin, Phone, Clock, Star, Navigation, Search } from "lucide-react";
+import { MapPin, Phone, Clock, Navigation, Search } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, Circle } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -28,7 +28,6 @@ interface JunkshopLocation {
   latitude: number;
   longitude: number;
   operatingHours: string;
-  rating: number;
   acceptedMaterials: string[];
   distance?: number;
 }
@@ -65,7 +64,6 @@ const getValidJunkshops = (users: User[]): JunkshopLocation[] => {
       latitude: Number(user.latitude),
       longitude: Number(user.longitude),
       operatingHours: "Operating",
-      rating: 4.5,
       acceptedMaterials: [],
     }));
 };
@@ -289,56 +287,29 @@ export default function JunkshopLocator() {
             </CardHeader>
             <CardContent>
               <div className="rounded-lg overflow-hidden border border-border">
-                <MapContainer
-                  center={[
-                    userLocation?.latitude || 16.4023,
-                    userLocation?.longitude || 120.5960,
-                ] as [number, number]}
-                  zoom={13}
-                  style={{ height: "500px", width: "100%" }}
-                >
-                  <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                  />
+                <MapContainer {...({ center:[ userLocation?.latitude || 16.4023, userLocation?.longitude || 120.5960 ] as [number, number], zoom:13, style:{ height: "500px", width: "100%" } } as any)}>
+                  <TileLayer {...({ url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' } as any)} />
 
                   {/* User Location */}
                   {userLocation && (
                     <>
-                      <Marker
-                        position={[userLocation.latitude, userLocation.longitude] as [number, number]}
-                        icon={userMarkerIcon}
-                      >
+                      <Marker {...({ position: [userLocation.latitude, userLocation.longitude] as [number, number], icon: userMarkerIcon } as any)}>
                         <Popup>
                           <div className="text-sm font-semibold">Your Location</div>
                         </Popup>
                       </Marker>
-                      <Circle
-                        center={[userLocation.latitude, userLocation.longitude] as [number, number]}
-                        radius={5000}
-                        fillOpacity={0.1}
-                      />
+                      <Circle {...({ center: [userLocation.latitude, userLocation.longitude] as [number, number], radius: 5000, fillOpacity: 0.1 } as any)} />
                     </>
                   )}
 
                   {/* Junkshops */}
                   {filteredLocations.map((location) => (
-                    <Marker
-                      key={location.id}
-                      position={[location.latitude, location.longitude] as [number, number]}
-                      icon={junkshopMarkerIcon}
-                      eventHandlers={{
-                        click: () => setSelectedJunkshop(location),
-                      }}
-                    >
+                      <Marker {...({ key:location.id, position:[location.latitude, location.longitude] as [number, number], icon: junkshopMarkerIcon, eventHandlers: { click: () => setSelectedJunkshop(location) } } as any)}>
                       <Popup>
                         <div className="text-sm">
                           <p className="font-semibold">{location.name}</p>
                           <p className="text-xs text-muted-foreground">{location.address}</p>
-                          <p className="text-xs mt-1 flex items-center gap-1">
-                            <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
-                            {location.rating}
-                          </p>
+
                           <p className="text-xs mt-1">📞 {location.phone}</p>
                         </div>
                       </Popup>
@@ -374,10 +345,7 @@ export default function JunkshopLocator() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <h3 className="text-xl font-bold text-foreground">{location.name}</h3>
-                          <div className="flex items-center gap-1 bg-yellow-50 px-2 py-1 rounded">
-                            <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                            <span className="text-sm font-semibold text-yellow-700">{location.rating}</span>
-                          </div>
+
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
                           <MapPin className="w-4 h-4" />
@@ -455,10 +423,7 @@ export default function JunkshopLocator() {
                 <DialogHeader>
                   <div className="flex items-center justify-between mb-2">
                     <DialogTitle className="text-2xl">{selectedJunkshop.name}</DialogTitle>
-                    <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1 rounded">
-                      <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                      <span className="font-semibold text-yellow-700">{selectedJunkshop.rating}</span>
-                    </div>
+
                   </div>
                   <DialogDescription>{selectedJunkshop.address}</DialogDescription>
                 </DialogHeader>

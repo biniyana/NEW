@@ -68,16 +68,46 @@ export default function TransactionAnalytics({ currentUser }: TransactionAnalyti
           transactions: count
         }));
 
-      // Extract junk types
+      // Extract junk types and quantities (try to parse numeric quantities when available)
       const junkTypeMap: Record<string, number> = {};
+
+      const numberPattern = /(\d+(?:\.\d+)?)(?:\s*(kg|g|kgs|pcs|pc|pieces|lb|lbs))?/gi;
+
+      const extractNearestNumber = (str: string, idx: number) => {
+        const matches = Array.from(str.matchAll(numberPattern)).map(m => ({ value: Number(m[1]), index: m.index ?? 0 }));
+        if (matches.length === 0) return 1; // default quantity
+        let nearest = matches[0];
+        let bestDist = Math.abs(nearest.index - idx);
+        for (const m of matches) {
+          const d = Math.abs(m.index - idx);
+          if (d < bestDist) {
+            nearest = m;
+            bestDist = d;
+          }
+        }
+        return nearest.value || 1;
+      };
+
       userTransactions.forEach((req: any) => {
-        const items = req.items?.toLowerCase() || '';
-        if (items.includes('plastic')) junkTypeMap['Plastic'] = (junkTypeMap['Plastic'] || 0) + 1;
-        if (items.includes('paper') || items.includes('newspaper')) junkTypeMap['Paper'] = (junkTypeMap['Paper'] || 0) + 1;
-        if (items.includes('metal') || items.includes('aluminum')) junkTypeMap['Metal'] = (junkTypeMap['Metal'] || 0) + 1;
-        if (items.includes('glass')) junkTypeMap['Glass'] = (junkTypeMap['Glass'] || 0) + 1;
-        if (items.includes('cardboard') || items.includes('boxes')) junkTypeMap['Cardboard'] = (junkTypeMap['Cardboard'] || 0) + 1;
-        if (items.includes('copper')) junkTypeMap['Copper'] = (junkTypeMap['Copper'] || 0) + 1;
+        const items = (req.items || "").toLowerCase();
+
+        const checkAndAdd = (keywords: string[], displayName: string) => {
+          for (const kw of keywords) {
+            const idx = items.indexOf(kw);
+            if (idx >= 0) {
+              const qty = extractNearestNumber(items, idx);
+              junkTypeMap[displayName] = (junkTypeMap[displayName] || 0) + qty;
+              return; // don't double-count same transaction for other synonyms
+            }
+          }
+        };
+
+        checkAndAdd(['plastic', 'bottle', 'bottles'], 'Plastic');
+        checkAndAdd(['paper', 'newspaper', 'newspapers'], 'Paper');
+        checkAndAdd(['metal', 'aluminum', 'can', 'cans'], 'Metal');
+        checkAndAdd(['glass', 'bottle glass'], 'Glass');
+        checkAndAdd(['cardboard', 'box', 'boxes'], 'Cardboard');
+        checkAndAdd(['copper'], 'Copper');
       });
 
       const junkTypeData = Object.entries(junkTypeMap).map(([type, count]) => ({

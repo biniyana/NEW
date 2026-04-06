@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,13 +20,38 @@ export default function RequestsPage() {
   const userStr = localStorage.getItem("user");
   const currentUser: User | null = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
   const isHousehold = currentUser?.userType === "household";
+  
+  console.log("👤 [Requests Page] Current user:", {
+    name: currentUser?.name,
+    id: currentUser?.id,
+    email: currentUser?.email,
+    userType: currentUser?.userType,
+  });
 
   const { data: requests = [], isLoading } = useQuery<RequestType[]>({
     queryKey: ["/api/requests"],
     queryFn: async () => {
-      return await fetch("/api/requests").then(res => res.json());
+      console.log("🔍 [Frontend] Fetching requests from /api/requests...");
+      const response = await fetch("/api/requests");
+      console.log("📡 [Frontend] Response status:", response.status);
+      const data = await response.json();
+      console.log("✅ [Frontend] Received requests:", data);
+      console.log("📊 [Frontend] Requests count:", Array.isArray(data) ? data.length : "not an array");
+      return data || [];
     },
   });
+
+  // Show only the household's own requests to household users (hide seed/dummy requests)
+  const visibleRequests = isHousehold ? requests.filter(r => {
+    const matches = r.requesterId === currentUser?.id;
+    console.log(`🔎 [Filter] Request ${r.id}: requesterId="${r.requesterId}" vs currentUser.id="${currentUser?.id}" → ${matches ? "SHOW" : "HIDE"}`);
+    return matches;
+  }) : requests;
+  
+  console.log(`📋 [Frontend] Total requests: ${requests.length}, Visible: ${visibleRequests.length}, User: ${currentUser?.name}`);
+  if (visibleRequests.length === 0 && isHousehold) {
+    console.log(`⚠️  [Frontend] Household user "${currentUser?.name}" (${currentUser?.id}) has no visible requests`);
+  }
 
   return (
     <div className="space-y-6">
@@ -51,7 +76,7 @@ export default function RequestsPage() {
               <NewRequestForm onClose={() => setIsDialogOpen(false)} />
             </DialogContent>
           </Dialog>
-        )}
+        )} 
       </div>
 
       {/* Requests List */}
@@ -70,19 +95,11 @@ export default function RequestsPage() {
             </Card>
           ))}
         </div>
-      ) : requests.length === 0 ? (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-lg font-medium text-foreground">No requests yet</p>
-            <p className="text-sm text-muted-foreground">
-              {isHousehold ? "Create your first collection request" : "No pending requests at the moment"}
-            </p>
-          </CardContent>
-        </Card>
+      ) : visibleRequests.length === 0 ? (
+        <></>
       ) : (
         <div className="space-y-4">
-          {requests.map((request) => (
+          {visibleRequests.map((request) => (
             <RequestCard key={request.id} request={request} isHousehold={isHousehold} />
           ))}
         </div>
@@ -93,6 +110,7 @@ export default function RequestsPage() {
 
 function RequestCard({ request, isHousehold }: { request: RequestType; isHousehold: boolean }) {
   const { toast } = useToast();
+  const [requesterItems, setRequesterItems] = useState<any[]>([]);
   
   const statusColors: Record<string, "secondary" | "default" | "outline" | "destructive"> = {
     Pending: "secondary",
@@ -103,7 +121,7 @@ function RequestCard({ request, isHousehold }: { request: RequestType; isHouseho
 
   const cancelMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("PATCH", `/api/requests/${request.id}`, { status: "Cancelled" });
+      return await apiRequest("PATCH", `/api/requests/${request.id}`, { status: "Cancelled", actorId: (JSON.parse(localStorage.getItem('user')||'null')||{}).id });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/requests"] });
@@ -123,7 +141,7 @@ function RequestCard({ request, isHousehold }: { request: RequestType; isHouseho
 
   const acceptMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("PATCH", `/api/requests/${request.id}`, { status: "Accepted" });
+      return await apiRequest("PATCH", `/api/requests/${request.id}`, { status: "Accepted", actorId: (JSON.parse(localStorage.getItem('user')||'null')||{}).id });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/requests"] });
@@ -143,11 +161,22 @@ function RequestCard({ request, isHousehold }: { request: RequestType; isHouseho
 
   const handleAction = () => {
     if (isHousehold) {
-      cancelMutation.mutate();
-    } else {
-      acceptMutation.mutate();
+      // Households cannot change request status after submission per system rules
+      toast({ title: "Action not allowed", description: "Households cannot modify requests after submission", variant: "destructive" });
+      return;
     }
+    // Junkshop: accept
+    acceptMutation.mutate();
   };
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const items = await fetch(`/api/items?sellerId=${encodeURIComponent(request.requesterId)}`).then(r => r.json()).catch(() => []);
+        setRequesterItems(items || []);
+      } catch (e) {}
+    })();
+  }, [request.requesterId]);
 
   return (
     <Card className="hover-elevate" data-testid={`card-request-${request.id}`}>
@@ -169,41 +198,90 @@ function RequestCard({ request, isHousehold }: { request: RequestType; isHouseho
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Calendar className="w-4 h-4" />
-          <span>{request.date}</span>
+          <span>{request.date}{request.time ? ` at ${request.time}` : ""}</span>
         </div>
         <p className="text-sm text-foreground">
           {isHousehold ? `Junkshop: ${request.responderName || "Waiting for response"}` : `From: ${request.requesterName}`}
         </p>
+        {requesterItems.length > 0 && (
+          <div className="mt-2">
+            <div className="text-sm font-medium mb-1">Items</div>
+            <div className="grid grid-cols-3 gap-2">
+              {requesterItems.map((it) => {
+                const imgs: any[] = typeof it.imageUrls === 'string' ? JSON.parse(it.imageUrls || '[]') : (it.imageUrls || []);
+                const url = (Array.isArray(imgs) && imgs[0]) || it.imageUrl || null;
+                return (
+                  <div key={it.id} className="text-xs">
+                    {url ? <img src={url} alt={it.title} className="w-full h-16 object-cover rounded" /> : <div className="text-2xl">{it.emoji}</div>}
+                    <div className="truncate">{it.title}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <div className="mt-2 text-sm">
+          <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(request.address)}`} target="_blank" rel="noreferrer" className="text-primary underline">Get directions</a>
+        </div>
       </CardContent>
-      {request.status === "Pending" && (
-        <CardFooter>
-          <Button 
-            className="w-full" 
-            variant="outline" 
-            onClick={handleAction}
-            disabled={cancelMutation.isPending || acceptMutation.isPending}
-            data-testid={`button-action-${request.id}`}
-          >
-            {cancelMutation.isPending || acceptMutation.isPending 
-              ? (isHousehold ? "Cancelling..." : "Accepting...") 
-              : (isHousehold ? "Cancel Request" : "Accept Request")}
+      <CardFooter className="flex gap-2">
+        {!isHousehold && request.status === "Pending" && (
+          <>
+            <Button variant="outline" className="flex-1" onClick={() => acceptMutation.mutate()} disabled={acceptMutation.isPending}>
+              {acceptMutation.isPending ? "Accepting..." : "Accept"}
+            </Button>
+            <Button variant="destructive" className="flex-1" onClick={() => apiRequest("PATCH", `/api/requests/${request.id}`, { status: "Declined", actorId: (JSON.parse(localStorage.getItem('user')||'null')||{}).id }).then(() => queryClient.invalidateQueries({ queryKey: ["/api/requests"] }))}>
+              Decline
+            </Button>
+          </>
+        )}
+
+        {!isHousehold && request.status === "Accepted" && (
+          <Button className="w-full" onClick={() => apiRequest("PATCH", `/api/requests/${request.id}`, { status: "Completed", actorId: (JSON.parse(localStorage.getItem('user')||'null')||{}).id }).then(() => queryClient.invalidateQueries({ queryKey: ["/api/requests"] }))}>
+            Mark Completed
           </Button>
-        </CardFooter>
-      )}
+        )}
+      </CardFooter>
     </Card>
   );
 }
 
 function NewRequestForm({ onClose }: { onClose: () => void }) {
   const { toast } = useToast();
-  const currentUser: User = JSON.parse(localStorage.getItem("user")!);
+  const userStr = localStorage.getItem("user");
+  const currentUser: User | null = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
+
+  const [availableItems, setAvailableItems] = useState<Array<any>>([]);
+  const [junkshops, setJunkshops] = useState<User[]>([]);
+  const [selectedJunkshop, setSelectedJunkshop] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     type: "Collection",
     items: "",
-    address: currentUser.address,
+    address: currentUser?.address || "",
     date: new Date().toISOString().split("T")[0],
+    time: "",
   });
+
+  // Load household items and available junkshops
+  React.useEffect(() => {
+    (async () => {
+      if (!currentUser) return;
+      try {
+        const items = await fetch(`/api/items?sellerId=${encodeURIComponent(currentUser.id)}`).then(r => r.json()).catch(() => []);
+        setAvailableItems(items || []);
+        if ((!formData.items || formData.items.length === 0) && items && items.length > 0) {
+          setFormData(f => ({ ...f, items: items.map((it: any) => it.title).join("; ") }));
+        }
+      } catch (e) {
+        // ignore
+      }
+      try {
+        const users = await fetch(`/api/users`).then(r => r.json()).catch(() => []);
+        setJunkshops((users || []).filter((u: any) => u.userType === "junkshop"));
+      } catch (e) {}
+    })();
+  }, []);
 
   const createRequestMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -228,10 +306,30 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      toast({ title: "Not signed in", description: "Please log in to create a request", variant: "destructive" });
+      window.location.href = "/login";
+      return;
+    }
+    if (currentUser.userType !== "household") {
+      toast({ title: "Not allowed", description: "Only household users may create collection requests", variant: "destructive" });
+      return;
+    }
+    if (!availableItems || availableItems.length === 0) {
+      toast({ title: "No items", description: "Please post at least one recyclable item before creating a request", variant: "destructive" });
+      return;
+    }
+    if (!selectedJunkshop) {
+      toast({ title: "Select junkshop", description: "Please choose a junkshop to address this request to", variant: "destructive" });
+      return;
+    }
+
     createRequestMutation.mutate({
       ...formData,
       requesterId: currentUser.id,
       requesterName: currentUser.name,
+      responderId: selectedJunkshop,
+      responderName: (junkshops.find(j => j.id === selectedJunkshop) as any)?.name || null,
       status: "Pending",
     });
   };
@@ -253,6 +351,14 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
             required
             data-testid="input-items"
           />
+          {availableItems.length > 0 && (
+            <div className="mt-2 text-sm text-muted-foreground">
+              Your posted items:
+              <ul className="list-disc pl-5">
+                {availableItems.map(it => <li key={it.id}>{it.title}</li>)}
+              </ul>
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -268,15 +374,37 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="date">Preferred Date</Label>
-          <Input
-            id="date"
-            type="date"
-            value={formData.date}
-            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-            required
-            data-testid="input-date"
-          />
+          <Label htmlFor="junkshop">Choose Junkshop</Label>
+          <select id="junkshop" value={selectedJunkshop || ""} onChange={(e) => setSelectedJunkshop(e.target.value)} className="w-full border rounded p-2">
+            <option value="">Select a junkshop</option>
+            {junkshops.map(js => (
+              <option key={js.id} value={js.id}>{js.name} — {js.address}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor="date">Preferred Date</Label>
+            <Input
+              id="date"
+              type="date"
+              value={formData.date}
+              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              required
+              data-testid="input-date"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="time">Preferred Time</Label>
+            <Input
+              id="time"
+              type="time"
+              value={formData.time}
+              onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+              data-testid="input-time"
+            />
+          </div>
         </div>
 
         <div className="flex gap-2">

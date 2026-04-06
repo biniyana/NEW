@@ -7,10 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import MapPinner from "@/components/MapPinner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { User as UserType, Item, Request } from "@shared/schema";
-import { MapPin, Mail, Phone, Star, User } from "lucide-react";
+import { User as UserType, Item } from "@shared/schema";
+import { MapPin, Mail, Phone, User } from "lucide-react";
+// reuse item card from marketplace so household users can see their own listings with photos
+import { ItemCard } from "./marketplace";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function ProfilePage() {
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
@@ -24,12 +27,7 @@ export default function ProfilePage() {
     },
   });
 
-  const { data: requests = [] } = useQuery<Request[]>({
-    queryKey: ["/api/requests"],
-    queryFn: async () => {
-      return await fetch("/api/requests").then(res => res.json());
-    },
-  });
+
 
   useEffect(() => {
     const userStr = localStorage.getItem("user");
@@ -42,14 +40,32 @@ export default function ProfilePage() {
   const [tempLat, setTempLat] = useState<number | null>(null);
   const [tempLng, setTempLng] = useState<number | null>(null);
 
-  const handleSave = () => {
-    if (currentUser) {
-      localStorage.setItem("user", JSON.stringify(currentUser));
+  const handleSave = async () => {
+    if (!currentUser) return;
+
+    try {
+      const response = await apiRequest("PATCH", `/api/users/${currentUser.id}`, {
+        name: currentUser.name,
+        email: currentUser.email,
+        phone: currentUser.phone,
+        address: currentUser.address,
+        latitude: currentUser.latitude,
+        longitude: currentUser.longitude,
+      });
+      const updatedUser = await response.json();
+      setCurrentUser(updatedUser as UserType);
+      localStorage.setItem("user", JSON.stringify(updatedUser));
       toast({
         title: "Profile updated",
         description: "Your changes have been saved",
       });
       setIsEditing(false);
+    } catch (error: any) {
+      toast({
+        title: "Save failed",
+        description: error?.message || "Unable to save profile changes",
+        variant: "destructive",
+      });
     }
   };
 
@@ -77,11 +93,8 @@ export default function ProfilePage() {
   const isHousehold = currentUser.userType === "household";
 
   // Calculate statistics
-  const itemsListed = items.filter(item => item.sellerId === currentUser.id).length;
-  const completedTransactions = requests.filter(
-    req => req.status === "Completed" && (req.requesterId === currentUser.id || req.responderId === currentUser.id)
-  ).length;
-  const hasCompletedTransactions = completedTransactions > 0;
+  const userItems = items.filter(item => item.sellerId === currentUser.id);
+  const itemsListed = userItems.length;
 
   return (
     <div className="space-y-6">
@@ -103,15 +116,25 @@ export default function ProfilePage() {
             <Badge variant="secondary" className="mb-4">
               {isHousehold ? "🏠 Household" : "🏪 Junkshop"}
             </Badge>
-            <div className="flex items-center justify-center gap-2 text-primary">
-              <Star className="w-5 h-5 fill-current" />
-              <span className="text-lg font-semibold">{currentUser.rating || "4.8"}</span>
-            </div>
-            <p className="text-sm text-muted-foreground mt-1">User Rating</p>
+
           </CardContent>
         </Card>
 
-        {/* Profile Details */}
+    {/* Household user's own postings, include photos */}
+    {isHousehold && (
+      <div>
+        <h3 className="text-2xl font-semibold mt-8">Your Marketplace Listings</h3>
+        {userItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground">You haven't posted any items yet.</p>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+            {userItems.map((item) => (
+              <ItemCard key={item.id} item={item} currentUser={currentUser} />
+            ))}
+          </div>
+        )}
+      </div>
+    )}
         <Card className="md:col-span-2">
           <CardHeader>
             <div className="flex justify-between items-center">
@@ -234,9 +257,11 @@ export default function ProfilePage() {
                       <MapPinner
                         initialLatitude={currentUser.latitude ? Number(currentUser.latitude) : undefined}
                         initialLongitude={currentUser.longitude ? Number(currentUser.longitude) : undefined}
-                        onLocationSelect={(lat, lng) => {
+                        address={currentUser.address}
+                        onLocationSelect={(lat, lng, addr) => {
                           setTempLat(lat);
                           setTempLng(lng);
+                          if (addr) setCurrentUser({ ...currentUser, address: addr });
                         }}
                       />
                       <div className="flex gap-2 mt-4">
@@ -253,34 +278,24 @@ export default function ProfilePage() {
       </div>
 
       {/* Statistics */}
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid md:grid-cols-2 gap-6">
         <Card>
           <CardContent className="p-6 text-center">
-            <p className="text-3xl font-bold text-primary mb-2">{isHousehold ? requests.filter(r => r.requesterId === currentUser.id).length : itemsListed}</p>
-            <p className="text-sm text-muted-foreground">
-              {isHousehold ? "Requests Made" : "Items Listed"}
+            <p className="text-3xl font-bold text-primary mb-2">{itemsListed}</p>
+            <p className="text-sm text-muted-foreground">Items Listed</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6 text-center">
+            <p className="text-3xl font-bold text-primary mb-2">
+              {new Date(currentUser.createdAt || new Date()).toLocaleDateString("en-US", {
+                month: "short",
+                year: "numeric",
+              })}
             </p>
+            <p className="text-sm text-muted-foreground">Member Since</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-6 text-center">
-            <p className="text-3xl font-bold text-primary mb-2">{completedTransactions}</p>
-            <p className="text-sm text-muted-foreground">Completed Transactions</p>
-          </CardContent>
-        </Card>
-        {hasCompletedTransactions && (
-          <Card>
-            <CardContent className="p-6 text-center">
-              <p className="text-3xl font-bold text-primary mb-2">
-                {new Date(currentUser.createdAt || new Date()).toLocaleDateString("en-US", {
-                  month: "short",
-                  year: "numeric",
-                })}
-              </p>
-              <p className="text-sm text-muted-foreground">Member Since</p>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );

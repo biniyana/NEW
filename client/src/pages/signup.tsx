@@ -178,9 +178,11 @@ export default function Signup() {
                       <MapPinner
                         initialLatitude={latitude ?? undefined}
                         initialLongitude={longitude ?? undefined}
-                        onLocationSelect={(lat, lng) => {
+                        address={formData.address}
+                        onLocationSelect={(lat, lng, addr) => {
                           setLatitude(lat);
                           setLongitude(lng);
+                          if (addr) setFormData(prev => ({ ...prev, address: addr }));
                         }}
                       />
                     </div>
@@ -214,6 +216,27 @@ export default function Signup() {
             >
               {signupMutation.isPending ? "Creating account..." : "Sign Up"}
             </Button>
+
+            {/* Google OAuth button */}
+            <div className="mt-4">
+              <hr className="border-t bg-border mb-4" />
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full flex items-center justify-center gap-2"
+                onClick={() => (window.location.href = "/auth/google")}
+                data-testid="button-google"
+                aria-label="Continue with Google"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                  <path d="M21.35 11.1h-9.18v2.92h5.26c-.23 1.3-1.14 2.4-2.42 3.13v2.6h3.9c2.28-2.1 3.6-5.2 3.6-8.92 0-.6-.05-1.18-.12-1.73z" fill="#4285F4"/>
+                  <path d="M12.17 22c2.83 0 5.2-.93 6.93-2.52l-3.3-2.62c-.92.62-2.1.99-3.64.99-2.79 0-5.16-1.87-6.01-4.38H2.19v2.75C3.93 19.9 7.77 22 12.17 22z" fill="#34A853"/>
+                  <path d="M6.16 13.88a6.99 6.99 0 010-3.74V7.39H2.19a10.96 10.96 0 000 9.22l3.97-2.73z" fill="#FBBC05"/>
+                  <path d="M12.17 6.18c1.54 0 2.94.53 4.03 1.56l3.03-3.03C17.36 2.2 14.99 1 12.17 1 7.77 1 3.93 3.1 2.19 6.39l3.97 2.75c.85-2.51 3.22-4.96 6.01-4.96z" fill="#EA4335"/>
+                </svg>
+                Continue with Google
+              </Button>
+            </div>
           </form>
 
           <div className="mt-6 text-center space-y-3">

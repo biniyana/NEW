@@ -12,6 +12,8 @@ const buttonVariants = cva(
       variant: {
         default:
           "bg-primary text-primary-foreground border border-primary-border",
+        gold:
+          "btn-gold",
         destructive:
           "bg-destructive text-destructive-foreground border border-destructive-border",
         outline:

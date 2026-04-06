@@ -89,37 +89,26 @@ export default function JunkshopsMap({
       </CardHeader>
       <CardContent>
         <div className="rounded-lg overflow-hidden border border-border h-96">
-          <MapContainer center={[centerLat, centerLng]} zoom={13} style={{ height: "100%", width: "100%" }}>
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            />
+          <MapContainer {...({ center:[centerLat, centerLng], zoom:13, style:{ height: "100%", width: "100%" } } as any)}>
+            <TileLayer {...({ url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' } as any)} />
 
             {/* Your location */}
             {userLocation && (
               <>
-                <Marker position={[centerLat, centerLng]} icon={userMarkerIcon}>
+                <Marker {...({ position:[centerLat, centerLng], icon: userMarkerIcon } as any)}>
                   <Popup>
                     <div className="text-sm font-semibold">Your Location</div>
                   </Popup>
                 </Marker>
                 {/* Radius circle */}
-                <Circle center={[centerLat, centerLng]} radius={radiusKm * 1000} fillOpacity={0.1} />
+                <Circle {...({ center:[centerLat, centerLng], radius: radiusKm * 1000, fillOpacity:0.1 } as any)} />
               </>
             )}
 
             {/* Junkshops */}
             {nearbyJunkshops.map((junkshop) => (
-              <Marker
-                key={junkshop.id}
-                position={[Number(junkshop.latitude), Number(junkshop.longitude)]}
-                icon={junkshopMarkerIcon}
-                eventHandlers={{
-                  click: () => {
-                    if (onJunkshopClick) onJunkshopClick(junkshop);
-                  },
-                }}
-              >
+              <Marker {...({ key: junkshop.id, position: [Number(junkshop.latitude), Number(junkshop.longitude)], icon: junkshopMarkerIcon, eventHandlers: { click: () => { if (onJunkshopClick) onJunkshopClick(junkshop); } } } as any)}>
+
                 <Popup>
                   <div className="text-sm">
                     <p className="font-semibold">{junkshop.name}</p>
@@ -133,17 +122,28 @@ export default function JunkshopsMap({
         </div>
 
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {nearbyJunkshops.map((junkshop) => (
-            <div
-              key={junkshop.id}
-              className="p-3 border border-border rounded-lg cursor-pointer hover:bg-accent transition-colors"
-              onClick={() => onJunkshopClick?.(junkshop)}
-            >
-              <p className="font-semibold text-sm">{junkshop.name}</p>
-              <p className="text-xs text-muted-foreground">{junkshop.address}</p>
-              <p className="text-xs mt-1">📞 {junkshop.phone}</p>
-            </div>
-          ))}
+          {nearbyJunkshops.map((junkshop) => {
+            const lat = Number(junkshop.latitude);
+            const lng = Number(junkshop.longitude);
+            const dest = `${lat},${lng}`;
+            const origin = userLocation ? `${userLocation.latitude},${userLocation.longitude}` : undefined;
+            const directionsUrl = origin
+              ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}`
+              : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}`;
+
+            return (
+              <div
+                key={junkshop.id}
+                className="p-3 border border-border rounded-lg cursor-pointer hover:bg-accent transition-colors"
+                onClick={() => onJunkshopClick?.(junkshop)}
+              >
+                <p className="font-semibold text-sm">{junkshop.name}</p>
+                <p className="text-xs text-muted-foreground">{junkshop.address}</p>
+                <p className="text-xs mt-1">📞 {junkshop.phone}</p>
+                <a href={directionsUrl} target="_blank" rel="noreferrer" className="text-xs mt-2 inline-block px-2 py-1 bg-gray-100 rounded">Get Directions</a>
+              </div>
+            );
+          })}
           {nearbyJunkshops.length === 0 && (
             <div className="col-span-full text-center text-muted-foreground py-4">
               No junkshops found within {radiusKm}km radius

@@ -5,8 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { User } from "@shared/schema";
-import { MapPin, Phone, Mail, Star, Clock } from "lucide-react";
+import { MapPin, Phone, Mail, Star, Clock, MessageCircle } from "lucide-react";
 import GetDirectionsButton from "@/components/GetDirectionsButton";
+import GoogleMapView from "@/components/GoogleMapView";
+import { useLocation } from "wouter";
 
 // Fix for leaflet markers
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -23,6 +25,7 @@ interface JunkshopProfileProps {
 }
 
 export default function JunkshopProfile({ junkshop, onCall, onEmail }: JunkshopProfileProps) {
+  const [, navigate] = useLocation();
   const hasLocation = junkshop.latitude && junkshop.longitude;
   const lat = hasLocation ? Number(junkshop.latitude) : 16.4023;
   const lng = hasLocation ? Number(junkshop.longitude) : 120.5960;
@@ -50,6 +53,10 @@ export default function JunkshopProfile({ junkshop, onCall, onEmail }: JunkshopP
     } else {
       window.location.href = `mailto:${junkshop.email}`;
     }
+  };
+
+  const handleContactSeller = () => {
+    navigate(`/messages?userId=${junkshop.id}`);
   };
 
   return (
@@ -95,15 +102,7 @@ export default function JunkshopProfile({ junkshop, onCall, onEmail }: JunkshopP
               </div>
             </div>
 
-            {junkshop.rating && junkshop.rating !== "0" && (
-              <div className="flex items-start gap-3">
-                <Star className="w-5 h-5 text-yellow-500 mt-1 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-semibold text-muted-foreground">Rating</p>
-                  <p className="text-sm">{junkshop.rating} / 5</p>
-                </div>
-              </div>
-            )}
+
           </div>
 
           {/* Action Buttons */}
@@ -115,6 +114,10 @@ export default function JunkshopProfile({ junkshop, onCall, onEmail }: JunkshopP
             <Button variant="outline" size="sm" onClick={handleEmail}>
               <Mail className="w-4 h-4 mr-2" />
               Email
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleContactSeller}>
+              <MessageCircle className="w-4 h-4 mr-2" />
+              Contact Seller
             </Button>
             {hasLocation && (
               <GetDirectionsButton
@@ -140,20 +143,27 @@ export default function JunkshopProfile({ junkshop, onCall, onEmail }: JunkshopP
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg overflow-hidden border border-border">
-              <MapContainer center={[lat, lng] as [number, number]} zoom={15} style={{ height: "300px", width: "100%" }}>
-                <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              {/* Prefer Google Maps if API key available, otherwise fallback to Leaflet */}
+              { (import.meta.env as any).VITE_GOOGLE_MAPS_API_KEY ? (
+                <GoogleMapView
+                  markers={[{ id: String(junkshop.id), name: junkshop.name, address: junkshop.address || "", latitude: lat, longitude: lng }]}
+                  center={{ lat, lng }}
+                  zoom={15}
+                  height="300px"
                 />
-                <Marker position={[lat, lng] as [number, number]} icon={junkshopMarkerIcon}>
-                  <Popup>
-                    <div className="text-sm">
-                      <p className="font-semibold">{junkshop.name}</p>
-                      <p className="text-xs text-muted-foreground">{junkshop.address}</p>
-                    </div>
-                  </Popup>
-                </Marker>
-              </MapContainer>
+              ) : (
+                <MapContainer {...({ center:[lat, lng] as [number, number], zoom:15, style:{ height: "300px", width: "100%" } } as any)}>
+                  <TileLayer {...({ url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' } as any)} />
+                  <Marker {...({ position:[lat, lng] as [number, number], icon: junkshopMarkerIcon } as any)}>
+                    <Popup>
+                      <div className="text-sm">
+                        <p className="font-semibold">{junkshop.name}</p>
+                        <p className="text-xs text-muted-foreground">{junkshop.address}</p>
+                      </div>
+                    </Popup>
+                  </Marker>
+                </MapContainer>
+              )}
             </div>
 
             {/* Coordinates Display */}

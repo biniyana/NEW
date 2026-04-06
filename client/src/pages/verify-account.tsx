@@ -32,6 +32,11 @@ export default function VerifyAccount() {
       const resp = await apiRequest("POST", "/api/auth/login", { email, password });
       if (!resp.ok) throw await resp.json();
       const data = await resp.json();
+      if (data.requiresOtp) {
+        toast({ title: "OTP sent", description: "A verification code was sent to your phone" });
+        setLocation(`/verify-otp?userId=${encodeURIComponent(data.userId)}`);
+        return;
+      }
       localStorage.setItem("user", JSON.stringify(data.user));
       toast({ title: "Login successful", description: `Welcome back ${data.user.name}` });
       setLocation("/dashboard");

@@ -18,10 +18,11 @@ L.Icon.Default.mergeOptions({
 });
 
 interface MapPinnerProps {
-  onLocationSelect: (latitude: number, longitude: number) => void;
+  // callback receives optional address when available
+  onLocationSelect?: (latitude: number, longitude: number, address?: string) => void;
   initialLatitude?: number;
   initialLongitude?: number;
-  address?: string;
+  address?: string; // optional address prop to trigger forward geocoding
 }
 
 // Component to handle map clicks
@@ -57,15 +58,69 @@ export default function MapPinner({
   const [centerLng, setCenterLng] = useState(initialLongitude || 120.5960);
   const [displayLat, setDisplayLat] = useState(initialLatitude?.toString() || "");
   const [displayLng, setDisplayLng] = useState(initialLongitude?.toString() || "");
+  const [displayAddress, setDisplayAddress] = useState<string | null>(address || null);
 
-  // Update display when marker changes
+  // When marker changes -> update coords and do reverse geocoding to resolve address
   useEffect(() => {
-    if (markerPosition) {
-      setDisplayLat(markerPosition[0].toFixed(7));
-      setDisplayLng(markerPosition[1].toFixed(7));
-      onLocationSelect(markerPosition[0], markerPosition[1]);
+    let cancelled = false;
+    async function updateFromMarker() {
+      if (!markerPosition) return;
+      const [lat, lng] = markerPosition;
+      setDisplayLat(lat.toFixed(7));
+      setDisplayLng(lng.toFixed(7));
+
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
+          { headers: { Accept: "application/json" } }
+        );
+        const data = await res.json();
+        if (!cancelled) {
+          const dname = data?.display_name || "";
+          setDisplayAddress(dname || null);
+          onLocationSelect?.(lat, lng, dname);
+        }
+      } catch (err) {
+        // still call callback with coordinates even without address
+        onLocationSelect?.(lat, lng, undefined);
+      }
     }
+
+    updateFromMarker();
+    return () => { cancelled = true; };
   }, [markerPosition]);
+
+  // When the `address` prop changes (e.g., user types in profile), do a forward geocode (debounced)
+  useEffect(() => {
+    if (!address || address.trim().length < 3) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
+          { headers: { Accept: "application/json" } }
+        );
+        const data = await res.json();
+        if (data && data.length > 0 && !cancelled) {
+          const r = data[0];
+          const lat = parseFloat(r.lat);
+          const lon = parseFloat(r.lon);
+          setMarkerPosition([lat, lon]);
+          setCenterLat(lat);
+          setCenterLng(lon);
+          setDisplayAddress(r.display_name || address);
+          onLocationSelect?.(lat, lon, r.display_name || address);
+        }
+      } catch (err) {
+        console.error("Forward geocode failed:", err);
+      }
+    }, 700);
+
+    return () => {
+      clearTimeout(timer);
+      cancelled = true;
+    };
+  }, [address]);
 
   const handleUseCurrentLocation = () => {
     if (navigator.geolocation) {
@@ -102,9 +157,9 @@ export default function MapPinner({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {address && (
+        {(displayAddress || address) && (
           <div className="text-sm text-muted-foreground p-2 bg-accent rounded">
-            📍 {address}
+            📍 {displayAddress || address}
           </div>
         )}
 
@@ -117,15 +172,8 @@ export default function MapPinner({
 
         {/* Map */}
         <div className="rounded-lg overflow-hidden border border-border">
-          <MapContainer
-            center={[centerLat, centerLng] as [number, number]}
-            zoom={14}
-            style={{ height: "400px", width: "100%" }}
-          >
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            />
+          <MapContainer {...({ center:[centerLat, centerLng] as [number, number], zoom:14, style:{ height: "400px", width: "100%" } } as any)}>
+            <TileLayer {...({ url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' } as any)} />
             <LocationMarker position={markerPosition} setPosition={setMarkerPosition} />
           </MapContainer>
         </div>

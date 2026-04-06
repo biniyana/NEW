@@ -32,7 +32,7 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  const { data: conversations = [] } = useQuery<ChatbotConversation[]>({
+  const { data: conversations = [] /*, refetch: refetchConversations */ } = useQuery<ChatbotConversation[]>({
     queryKey: ["/api/chatbot", currentUser?.id],
     queryFn: async () => {
       if (!currentUser?.id) return [];
@@ -40,22 +40,121 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
       if (!response.ok) throw new Error("Failed to fetch chat history");
       return response.json();
     },
+    staleTime: 0, // Disable caching to always get fresh data
+    refetchInterval: false,
   });
+
+  const [loading, setLoading] = useState(false);
+  const [hasNewMessage, setHasNewMessage] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setHasNewMessage(false);
+    }
+  }, [isOpen]);
 
   const chatMutation = useMutation({
     mutationFn: async (message: string) => {
+      console.log("[Chatbot] Sending message:", { userId: currentUser?.id, message });
       const response = await apiRequest("POST", "/api/chatbot/chat", {
         userId: currentUser?.id,
         message,
       });
-      return response;
+      const data = await response.json();
+      console.log("[Chatbot] Response received:", data);
+      return data;
+    },
+    onMutate: (message: string) => {
+      setLoading(true);
+      // show user's message right away
+      if (currentUser) {
+        queryClient.setQueryData<ChatbotConversation[]>(["/api/chatbot", currentUser.id], (old = []) => [
+          ...old,
+          {
+            id: `temp-user-${Date.now()}`,
+            userId: currentUser.id,
+            role: "user",
+            content: message,
+            timestamp: new Date(),
+          } as ChatbotConversation,
+        ]);
+      }
+    },
+    onSuccess: (data: any) => {
+      console.log("[Chatbot] Success - received:", data?.message);
+      setMessageText("");
+      // Immediately append assistant message for snappy UI (persist locally)
+      if (data?.message && currentUser) {
+        queryClient.setQueryData<ChatbotConversation[]>(["/api/chatbot", currentUser.id], (old = []) => [
+          ...old,
+          {
+            id: `temp-${Date.now()}`,
+            userId: currentUser.id,
+            role: "assistant",
+            content: data.message,
+            timestamp: new Date(),
+          } as ChatbotConversation,
+        ]);
+        if (!isOpen) {
+          setHasNewMessage(true);
+        }
+      }
+      // skip immediate refetch; we'll rely on optimistic state or manual refresh if needed
+      // refetchConversations();
+    },
+    onError: (error: any) => {
+      console.error("[Chatbot] Mutation error:", error?.message || error);
+      toast({
+        title: "Message failed",
+        description: error?.message || "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      setLoading(false);
+    },
+  });
+
+  const deleteMessageMutation = useMutation({
+    mutationFn: async (messageId: string) => {
+      return await apiRequest("DELETE", `/api/chatbot/${messageId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/chatbot", currentUser?.id] });
-      setMessageText("");
+      toast({
+        title: "Message deleted",
+        description: "The message has been removed from the conversation",
+      });
+      setDeletingMessageId(null);
     },
     onError: (error: any) => {
-      console.error("Chat error:", error);
+      toast({
+        title: "Delete failed",
+        description: error.message || "Failed to delete message",
+        variant: "destructive",
+      });
+      setDeletingMessageId(null);
+    },
+  });
+
+  const clearConversationMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentUser?.id) throw new Error("User not found");
+      return await apiRequest("DELETE", `/api/chatbot/user/${currentUser.id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/chatbot", currentUser?.id] });
+      toast({
+        title: "Conversation cleared",
+        description: "All messages have been deleted",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Clear failed",
+        description: error.message || "Failed to clear conversation",
+        variant: "destructive",
+      });
     },
   });
 
@@ -67,7 +166,7 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
         scrollElement.scrollTop = scrollElement.scrollHeight;
       }
     }
-  }, [conversations, chatMutation.isPending]);
+  }, [conversations, loading]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,14 +180,7 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
 
   const handleClearHistory = () => {
     if (conversations.length === 0) return;
-    if (confirm("Are you sure you want to clear the conversation history?")) {
-      localStorage.removeItem(`jarvish-${currentUser?.id}`);
-      queryClient.invalidateQueries({ queryKey: ["/api/chatbot", currentUser?.id] });
-      toast({
-        title: "Conversation cleared",
-        description: "Chat history has been cleared",
-      });
-    }
+    clearConversationMutation.mutate();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -97,6 +189,25 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
       handleSendMessage(e as any);
     }
   };
+
+
+  function renderMessage(text: string | undefined) {
+    if (!text) return null;
+    const content = String(text).trim();
+    if (!content) return null;
+
+    // simple paragraph/line splitting, no link handling
+    return content.split(/\n\n+/).map((para, idx) => (
+      <p key={idx} className="mb-2">
+        {para.split(/\n/).map((line, j) => (
+          <>
+            {line}
+            {j < para.split(/\n/).length - 1 && <br />}
+          </>
+        ))}
+      </p>
+    ));
+  }
 
   if (!currentUser) return null;
 
@@ -111,7 +222,7 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
                 🤖
               </div>
               <div>
-                <p className="text-white font-bold text-sm">Jarvish</p>
+                <p className="text-white font-bold text-sm">Garbish</p>
                 <p className="text-white/70 text-xs">Eco-Assistant</p>
               </div>
             </div>
@@ -122,10 +233,15 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
                   variant="ghost"
                   className="text-white hover:bg-white/20 h-8 w-8"
                   onClick={handleClearHistory}
-                  data-testid="button-clear-jarvish"
+                  disabled={clearConversationMutation.isPending}
+                  data-testid="button-clear-garbish"
                   title="Clear history"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  {clearConversationMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
                 </Button>
               )}
               <Button
@@ -133,7 +249,7 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
                 variant="ghost"
                 className="text-white hover:bg-white/20 h-8 w-8"
                 onClick={() => setIsOpen(false)}
-                data-testid="button-close-jarvish"
+                data-testid="button-close-garbish"
               >
                 <ChevronDown className="w-4 h-4" />
               </Button>
@@ -145,16 +261,16 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
             <div className="space-y-4">
               {chatMutation.isError && (
                 <div className="bg-destructive/20 border border-destructive/30 text-destructive-foreground rounded-lg p-3 text-xs animate-in fade-in">
-                  <p className="font-semibold mb-1">⚠️ Jarvish Unavailable</p>
+                  <p className="font-semibold mb-1">⚠️ Garbish Unavailable</p>
                   <p className="text-xs">Our AI assistant is experiencing issues. Please check back shortly or contact support.</p>
                 </div>
               )}
 
-              {conversations.length === 0 && !chatMutation.isPending ? (
+              {conversations.length === 0 && !loading ? (
                 <div className="flex flex-col items-center justify-center py-12 space-y-4">
                   <div className="text-4xl">🤖</div>
                   <div className="text-center">
-                    <p className="text-foreground font-bold text-sm mb-1">Welcome to Jarvish!</p>
+                    <p className="text-foreground font-bold text-sm mb-1">Welcome to Garbish!</p>
                     <p className="text-muted-foreground text-xs mb-4">
                       Your eco-friendly marketplace assistant
                     </p>
@@ -180,16 +296,28 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
                   return (
                     <div
                       key={conv.id}
-                      className={`flex ${isUser ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2`}
+                      className={`flex ${isUser ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 group`}
                     >
                       <div
-                        className={`max-w-[75%] rounded-lg p-3 ${
+                        className={`max-w-[75%] rounded-lg p-3 relative ${
                           isUser
                             ? "bg-primary text-primary-foreground rounded-br-none"
                             : "bg-muted text-foreground rounded-bl-none"
                         }`}
                       >
-                        <p className="text-sm break-words">{conv.content}</p>
+                        {isUser && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute -top-2 -left-8 w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary/20"
+                            onClick={() => deleteMessageMutation.mutate(conv.id)}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        )}
+                        <div className="text-sm break-words">
+                          {renderMessage(conv.content)}
+                        </div>
                         <p
                           className={`text-xs mt-2 ${
                             isUser ? "text-primary-foreground/70" : "text-muted-foreground"
@@ -206,11 +334,11 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
                 })
               )}
 
-              {chatMutation.isPending && (
+              {loading && (
                 <div className="flex justify-start animate-in fade-in">
                   <div className="bg-muted text-foreground rounded-lg rounded-bl-none p-3 flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-sm">Jarvish is thinking...</span>
+                    <span className="text-sm">Garbish is thinking...</span>
                   </div>
                 </div>
               )}
@@ -221,22 +349,22 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
           <div className="border-t border-border p-3 bg-background/50 backdrop-blur">
             <form onSubmit={handleSendMessage} className="flex gap-2">
               <Input
-                placeholder="Ask Jarvish..."
+                placeholder="Ask Garbish..."
                 value={messageText}
                 onChange={(e) => setMessageText(e.target.value)}
                 onKeyDown={handleKeyDown}
-                data-testid="input-jarvish-message"
-                disabled={chatMutation.isPending}
+                data-testid="input-garbish-message"
+                disabled={loading}
                 className="text-sm h-10"
               />
               <Button
                 type="submit"
                 size="icon"
-                disabled={!messageText.trim() || chatMutation.isPending}
-                data-testid="button-jarvish-send"
+                disabled={!messageText.trim() || loading}
+                data-testid="button-garbish-send"
                 className="h-10 w-10"
               >
-                {chatMutation.isPending ? (
+                {loading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Send className="w-4 h-4" />
@@ -253,11 +381,14 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
           onClick={() => setIsOpen(true)}
           className="rounded-full w-16 h-16 shadow-2xl animate-in fade-in zoom-in-75 duration-500 hover:scale-110 transition-transform"
           size="icon"
-          data-testid="button-open-jarvish"
-          title="Open Jarvish Assistant"
+          data-testid="button-open-garbish"
+          title="Open Garbish Assistant"
         >
-          <div className="flex flex-col items-center justify-center gap-1">
+          <div className="relative flex flex-col items-center justify-center gap-1">
             <MessageCircle className="w-6 h-6" />
+            {hasNewMessage && (
+              <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white animate-pulse" />
+            )}
             <span className="text-xs">Ask</span>
           </div>
         </Button>

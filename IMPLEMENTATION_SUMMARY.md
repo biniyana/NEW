@@ -398,6 +398,31 @@ Features:
 Before going live:
 - [ ] Test all three components work together
 - [ ] Verify on mobile device
+
+---
+
+## ✅ New Security Feature: SMS OTP 2-Factor Authentication
+
+**Files added/modified:**
+- `server/routes.ts` (new endpoints: `/api/auth/send-otp`, `/api/auth/verify-otp`, conditional OTP on `/api/auth/login`)
+- `server/storage.ts` (in-memory OTP store + helpers)
+- `client/src/pages/verify-otp.tsx` (new UI for entering OTP)
+- `client/src/pages/login.tsx` and `client/src/pages/verify-account.tsx` (login flow updated to redirect to OTP step)
+- `.env` (new `SMS_2FA` and optional `TWILIO_*` variables)
+
+**How it works:**
+1. When `SMS_2FA=true`, password login triggers an OTP to the user's phone (if present).
+2. User is redirected to `/verify-otp` to enter the 6-digit code.
+3. `/api/auth/verify-otp` checks the code (5 minute expiry, 5 attempt limit) and returns the authenticated user on success.
+4. If Twilio credentials are provided, real SMS messages will be sent; otherwise OTPs are logged to the server console (useful for local dev).
+
+**To enable:**
+- Set `SMS_2FA=true` in `.env`.
+- (Optional) Add Twilio credentials to `.env` and run `npm install twilio` to send real SMS messages.
+
+**Notes:**
+- Current implementation stores OTPs in-memory (suitable for dev). For production, add a persistent OTP store (DB table) and rate-limiting.
+
 - [ ] Check geolocation prompts
 - [ ] Test Google Maps integration
 - [ ] Verify coordinates save to database

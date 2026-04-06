@@ -12,7 +12,6 @@ export const users = pgTable("users", {
   address: text("address").notNull(),
   password: text("password").notNull(),
   userType: text("user_type").notNull(), // 'household' or 'junkshop'
-  rating: text("rating").default("0"),
   latitude: decimal("latitude", { precision: 10, scale: 7 }),
   longitude: decimal("longitude", { precision: 10, scale: 7 }),
   createdAt: timestamp("created_at").defaultNow(),
@@ -58,6 +57,7 @@ export const requests = pgTable("requests", {
   responderId: varchar("responder_id"),
   responderName: text("responder_name"),
   date: text("date").notNull(),
+  time: text("time"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -73,7 +73,7 @@ export const messages = pgTable("messages", {
   read: text("read").default("false"),
 });
 
-// Chatbot conversations with Jarvish
+// Chatbot conversations with Garbish
 export const chatbotConversations = pgTable("chatbot_conversations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
@@ -87,8 +87,10 @@ export const rates = pgTable("rates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   material: text("material").notNull(),
   price: text("price").notNull(),
+  unit: text("unit").default("kg"),
   icon: text("icon").default("📦"),
   category: text("category").notNull(),
+  sellerId: varchar("seller_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -133,6 +135,9 @@ export const insertChatbotConversationSchema = createInsertSchema(chatbotConvers
 export const insertRateSchema = createInsertSchema(rates).omit({
   id: true,
   createdAt: true,
+}).extend({
+  sellerId: z.string().optional(),
+  unit: z.string().optional(),
 });
 
 // Types

@@ -1,3 +1,8 @@
+import dotenv from "dotenv";
+dotenv.config();
+console.log("Genkit AI Enabled:", Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY));
+
+
 import fs from "node:fs";
 import path from "node:path";
 import { type Server } from "node:http";

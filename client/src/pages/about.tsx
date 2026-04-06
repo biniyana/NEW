@@ -45,7 +45,7 @@ export default function About() {
               </li>
               <li className="flex items-start gap-3 text-foreground">
                 <Star className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
-                <span>Rating system for trust and quality</span>
+                <span>Trust and quality assurances</span>
               </li>
             </ul>
           </CardContent>

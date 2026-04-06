@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Phone, Clock, Star, Navigation, Search, Mail, X, Satellite } from "lucide-react";
+import { MapPin, Phone, Clock, Navigation, Search, Mail, X, Satellite } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { User } from "@shared/schema";
 
@@ -18,7 +18,6 @@ interface Location {
   latitude: number;
   longitude: number;
   operatingHours?: string;
-  rating: number;
   description?: string;
   materials?: string[];
 }
@@ -107,7 +106,6 @@ export default function RecyclingMap() {
         latitude: Number(user.latitude),
         longitude: Number(user.longitude),
         operatingHours: "Operating",
-        rating: 4.5, // Default rating
         description: `Junkshop by ${user.name}`,
         materials: [],
       }));
@@ -190,47 +188,25 @@ export default function RecyclingMap() {
         {/* Map Container - Takes 2 columns on large screens */}
         <div className="lg:col-span-2 flex flex-col min-h-[500px]">
           <div className="relative rounded-xl border border-border overflow-hidden shadow-xl flex-1 bg-muted">
-            <MapContainer
-              key={`map-${mapLayer}`}
-              center={[16.4023, 120.5960]}
-              zoom={14}
-              style={{ height: "100%", width: "100%" }}
-              className="z-0"
-            >
+            <MapContainer {...({ key:`map-${mapLayer}`, center:[16.4023, 120.5960], zoom:14, style:{ height: "100%", width: "100%" }, className:"z-0" } as any)}>
               {/* Street Map */}
               {mapLayer === "street" && (
-                <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution='&copy; OpenStreetMap contributors'
-                />
+                <TileLayer {...({ url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: '&copy; OpenStreetMap contributors' } as any)} />
               )}
 
               {/* Satellite View */}
               {mapLayer === "satellite" && (
-                <TileLayer
-                  url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                  attribution="Tiles &copy; Esri"
-                />
+                <TileLayer {...({ url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attribution: "Tiles &copy; Esri" } as any)} />
               )}
 
               {/* Dark Map */}
               {mapLayer === "dark" && (
-                <TileLayer
-                  url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                  attribution='&copy; OpenStreetMap, &copy; CartoDB'
-                />
+                <TileLayer {...({ url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", attribution: '&copy; OpenStreetMap, &copy; CartoDB' } as any)} />
               )}
 
               {/* Junkshop Markers */}
               {filteredLocations.map((location) => (
-                <Marker
-                  key={location.id}
-                  position={[location.latitude, location.longitude] as [number, number]}
-                  icon={createJunkshopIcon()}
-                  eventHandlers={{
-                    click: () => setSelectedLocation(location),
-                  }}
-                />
+                <Marker {...({ key: location.id, position:[location.latitude, location.longitude] as [number, number], icon: createJunkshopIcon(), eventHandlers:{ click: () => setSelectedLocation(location) } } as any)} />
               ))}
 
               <MapController filteredLocations={filteredLocations} />
@@ -262,14 +238,6 @@ export default function RecyclingMap() {
               </CardHeader>
 
               <CardContent className="flex-1 space-y-5 p-4 overflow-y-auto">
-                {/* Rating */}
-                <div className="flex items-center gap-3 p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                  <Star className="w-5 h-5 fill-yellow-400 text-yellow-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Rating</p>
-                    <p className="text-lg font-bold">{selectedLocation.rating.toFixed(1)}/5.0</p>
-                  </div>
-                </div>
 
                 {/* Address */}
                 <div className="space-y-2">

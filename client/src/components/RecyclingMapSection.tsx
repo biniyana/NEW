@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MapPin, Phone, Clock, Star, Navigation, Search, Loader } from "lucide-react";
+import { MapPin, Phone, Clock, Navigation, Search, Loader } from "lucide-react";
 
 // Declare Google Maps namespace
 declare global {
@@ -19,7 +19,6 @@ interface Location {
   latitude: number;
   longitude: number;
   operatingHours?: string;
-  rating: number;
   description?: string;
 }
 
@@ -46,8 +45,8 @@ export default function RecyclingMapSection() {
         return;
       }
 
-      // Using demo Google Maps API key (replace with your own)
-      const apiKey = "AIzaSyBDjedHw1pwj0Ygdx4wjPv8kQcVS7Qc5jw";
+      // Prefer project environment key (Vite): VITE_GOOGLE_MAPS_API_KEY
+      const apiKey = (import.meta.env as any).VITE_GOOGLE_MAPS_API_KEY || "";
       
       const script = document.createElement("script");
       script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
@@ -132,14 +131,13 @@ export default function RecyclingMapSection() {
             <div style="font-weight: bold; margin-bottom: 4px;">${location.name}</div>
             <div style="font-size: 12px; color: #666; margin-bottom: 8px;">${location.description}</div>
             <div style="font-size: 12px;">
-              <div>Rating: <strong>${location.rating}★</strong></div>
               <div>${location.address}</div>
+              <div>📞 ${location.phone}</div>
             </div>
           </div>
         `);
         infoWindowRef.current?.open(mapRef.current, marker);
       });
-
       markersRef.current.push(marker);
       bounds.extend(marker.getPosition()!);
     });
@@ -233,10 +231,7 @@ export default function RecyclingMapSection() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1">
                     <CardTitle className="text-lg line-clamp-2">{selectedLocation.name}</CardTitle>
-                    <div className="flex items-center gap-1 mt-2">
-                      <Star className="w-4 h-4 fill-yellow-500 text-yellow-500" />
-                      <span className="font-semibold text-sm">{selectedLocation.rating}</span>
-                    </div>
+
                   </div>
                 </div>
               </CardHeader>
