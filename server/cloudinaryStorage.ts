@@ -1,6 +1,4 @@
 import { v2 as cloudinary } from 'cloudinary';
-import { promises as fs } from 'fs';
-import path from 'path';
 import dotenv from 'dotenv';
 
 // Load environment variables

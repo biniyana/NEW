@@ -274,7 +274,8 @@ If you want to reset seed data while the server is running, you can manually cal
 **This is expected behavior.** MemStorage is in-memory only:
 - Seed data loads fresh on each server start
 - Perfect for testing; no persistent state to clean up
-- For persistent storage, enable `PERSIST_MEM_STORAGE=true` and `SUPABASE_URL`/`SUPABASE_KEY`
+- For persistent storage, enable `PERSIST_MEM_STORAGE=true` (stores in data/memstorage.json)
+
 
 ### Issue: Can't login with dummy accounts
 
@@ -365,8 +366,9 @@ To reset persisted data:
 **⚠️ IMPORTANT:**
 - Never enable `SEED_DATA=true` in production
 - Seed data is development-only for testing
-- Production uses `SUPABASE_URL` and `SUPABASE_KEY` for real database
-- Seed data does not affect Supabase if configured
+- Production uses Firebase (configured via `FIREBASE_SERVICE_ACCOUNT_KEY`) for persistent database
+- Seed data only affects the runtime memory storage, not production databases
+
 
 ---
 

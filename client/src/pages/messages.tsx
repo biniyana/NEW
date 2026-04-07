@@ -16,6 +16,7 @@ export default function MessagesPage() {
   const userStr = localStorage.getItem("user");
   const currentUser: User | null = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [selectedUserName, setSelectedUserName] = useState<string>("");
   const [messageText, setMessageText] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [chatSearchTerm, setChatSearchTerm] = useState("");
@@ -128,6 +129,35 @@ export default function MessagesPage() {
       chatSearchTerm ? m.content.toLowerCase().includes(chatSearchTerm.toLowerCase()) : true
     );
 
+  useEffect(() => {
+    if (!selectedUser) {
+      setSelectedUserName("");
+      return;
+    }
+
+    const existingConversation = conversations.find((c) => c.userId === selectedUser);
+    if (existingConversation) {
+      setSelectedUserName(existingConversation.userName);
+      return;
+    }
+
+    const fetchUserName = async () => {
+      try {
+        const response = await fetch(`/api/users/${selectedUser}`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch user name");
+        }
+        const userData = await response.json();
+        setSelectedUserName(userData.name || "Unknown");
+      } catch (error) {
+        console.error("Failed to load chat partner name", error);
+        setSelectedUserName("Unknown");
+      }
+    };
+
+    fetchUserName();
+  }, [selectedUser, conversations]);
+
   const sendMessageMutation = useMutation({
     mutationFn: async (data: any) => {
       const response = await apiRequest("POST", "/api/messages", data);
@@ -155,7 +185,7 @@ export default function MessagesPage() {
       senderId: currentUser?.id,
       senderName: currentUser?.name,
       receiverId: selectedUser,
-      receiverName: receiver?.userName,
+      receiverName: receiver?.userName || selectedUserName || "Unknown",
       content: messageText,
     });
   };
@@ -245,7 +275,7 @@ export default function MessagesPage() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between gap-2">
                   <CardTitle>
-                    {conversations.find((c) => c.userId === selectedUser)?.userName}
+                    {selectedUserName || conversations.find((c) => c.userId === selectedUser)?.userName || "Conversation"}
                   </CardTitle>
                   <Button 
                     variant="ghost" 
