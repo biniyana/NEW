@@ -12,12 +12,13 @@ import { MapPin, Mail, Phone, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { ref, onValue } from "firebase/database";
+import { ref, onValue, update } from "firebase/database";
 import { database, auth } from "@/firebase/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 
 export default function ProfilePage() {
-  const [currentUser, setCurrentUser] = useState<UserType | null>(null);
+  type ProfileUser = UserType & { uid?: string; profileComplete?: boolean };
+  const [currentUser, setCurrentUser] = useState<ProfileUser | null>(null);
   const [authUid, setAuthUid] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
@@ -27,7 +28,13 @@ export default function ProfilePage() {
   useEffect(() => {
     const userStr = localStorage.getItem("user");
     if (userStr && userStr !== "undefined") {
-      setCurrentUser(JSON.parse(userStr));
+      const parsed = JSON.parse(userStr);
+      const normalizedUser = {
+        ...parsed,
+        id: parsed.id ?? null,
+        uid: parsed.uid ?? parsed.userId ?? null,
+      };
+      setCurrentUser(normalizedUser);
     }
 
     // Also get the UID from Firebase auth
@@ -102,20 +109,54 @@ export default function ProfilePage() {
   const [tempLat, setTempLat] = useState<number | null>(null);
   const [tempLng, setTempLng] = useState<number | null>(null);
 
+  const getCurrentUserId = () => currentUser?.id || currentUser?.uid || null;
+
   const handleSave = async () => {
     if (!currentUser) return;
 
-    try {
-      const response = await apiRequest("PATCH", `/api/users/${currentUser.id}`, {
-        name: currentUser.name,
-        email: currentUser.email,
-        phone: currentUser.phone,
-        address: currentUser.address,
-        latitude: currentUser.latitude,
-        longitude: currentUser.longitude,
+    const userId = getCurrentUserId();
+    if (!userId) {
+      toast({
+        title: "Save failed",
+        description: "Unable to save profile: user identifier is missing.",
+        variant: "destructive",
       });
-      const updatedUser = await response.json();
-      setCurrentUser(updatedUser as UserType);
+      return;
+    }
+
+    try {
+      let updatedUser: ProfileUser;
+
+      if (currentUser.id) {
+        const response = await apiRequest("PATCH", `/api/users/${currentUser.id}`, {
+          name: currentUser.name,
+          email: currentUser.email,
+          phone: currentUser.phone,
+          address: currentUser.address,
+          latitude: currentUser.latitude,
+          longitude: currentUser.longitude,
+        });
+        updatedUser = (await response.json()) as ProfileUser;
+      } else {
+        const firebaseUpdates = {
+          name: currentUser.name,
+          email: currentUser.email,
+          phone: currentUser.phone,
+          address: currentUser.address,
+          latitude: currentUser.latitude ?? null,
+          longitude: currentUser.longitude ?? null,
+          updatedAt: new Date().toISOString(),
+        };
+        await update(ref(database, `users/${userId}`), firebaseUpdates);
+        updatedUser = {
+          ...currentUser,
+          ...firebaseUpdates,
+          uid: userId,
+          id: currentUser.id ?? undefined,
+        };
+      }
+
+      setCurrentUser(updatedUser);
       localStorage.setItem("user", JSON.stringify(updatedUser));
       toast({
         title: "Profile updated",
@@ -133,14 +174,29 @@ export default function ProfilePage() {
 
   const handleSaveLocation = async () => {
     if (!currentUser || tempLat === null || tempLng === null) return;
+    const userId = getCurrentUserId();
+    if (!userId) {
+      toast({ title: "Save failed", description: "Could not save location: missing user ID", variant: "destructive" });
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/users/${currentUser.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ latitude: tempLat, longitude: tempLng }),
-      });
-      const updated = await res.json();
-      const newUser = { ...currentUser, latitude: String(tempLat), longitude: String(tempLng) } as UserType;
+      if (currentUser.id) {
+        const res = await fetch(`/api/users/${currentUser.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ latitude: tempLat, longitude: tempLng }),
+        });
+        await res.json();
+      } else {
+        await update(ref(database, `users/${userId}`), {
+          latitude: tempLat,
+          longitude: tempLng,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      const newUser = { ...currentUser, latitude: String(tempLat), longitude: String(tempLng) } as ProfileUser;
       setCurrentUser(newUser);
       localStorage.setItem("user", JSON.stringify(newUser));
       setIsLocationOpen(false);

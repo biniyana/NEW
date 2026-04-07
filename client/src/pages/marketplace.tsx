@@ -15,7 +15,7 @@ import { Plus, Edit, Trash2, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { uploadImageToCloudinary } from "@/utils/cloudinary";
-import { ref, set, update, remove, onValue, query } from "firebase/database";
+import { ref, set, update, remove, onValue, query, get } from "firebase/database";
 import { database, auth } from "@/firebase/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 
@@ -367,12 +367,25 @@ function AddItemForm({ onClose }: AddItemFormProps) {
         throw new Error("No authenticated user. Please log in.");
       }
 
+      // Fetch the current user's profile to get the correct name
+      let sellerName = currentUser?.name || auth.currentUser?.displayName || "Unknown";
+      try {
+        const userRef = ref(database, `users/${uid}`);
+        const userSnapshot = await get(userRef);
+        if (userSnapshot.exists()) {
+          const userProfile = userSnapshot.val();
+          sellerName = userProfile.name || sellerName;
+        }
+      } catch (error) {
+        console.warn("Could not fetch user profile, using cached name", error);
+      }
+
       const itemId = `item_${Date.now()}`;
       const itemData = {
         id: itemId,
         ...data,
         sellerId: uid,
-        sellerName: currentUser?.name || "Unknown",
+        sellerName,
         imageUrl: data.imageUrls?.[0] || "",
         imageUrls: data.imageUrls || [],
         status: "available",
@@ -452,7 +465,7 @@ function AddItemForm({ onClose }: AddItemFormProps) {
       <form onSubmit={handleSubmit} className="space-y-4 mt-4">
 
         <Input
-          placeholder="Item Title"
+          placeholder="Item Title e.g plastic cans 2kg"
           value={formData.title}
           onChange={(e) =>
             setFormData({ ...formData, title: e.target.value })

@@ -6,12 +6,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { User, Rate } from "@shared/schema";
 import { Edit2, Loader2, Trash2, Plus, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+
+const categories = ["Plastic", "Paper", "Metal", "Glass", "Cardboard", "Copper"];
+
+const categoryEmojis: Record<string, string> = {
+  Plastic: "🍾",
+  Paper: "📰",
+  Metal: "🥫",
+  Glass: "🍷",
+  Cardboard: "📦",
+  Copper: "🔌",
+};
 
 export default function RatesPage() {
   const [, navigate] = useLocation();
@@ -21,6 +34,7 @@ export default function RatesPage() {
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPrice, setEditPrice] = useState("");
+  const [deletingRateId, setDeletingRateId] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Household view: search and list junkshops
@@ -116,7 +130,7 @@ export default function RatesPage() {
 
   // Add / Remove (junkshop)
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [newRate, setNewRate] = useState({ material: "", category: "", price: "", icon: "📦", unit: "kg" });
+  const [newRate, setNewRate] = useState({ material: "", category: "", price: "₱", icon: "📦", unit: "kg" });
 
   const handleAddRate = () => {
     const userStr = localStorage.getItem("user");
@@ -125,12 +139,25 @@ export default function RatesPage() {
     if (!newRate.material.trim() || !newRate.price.trim() || !newRate.category.trim()) {
       return toast({ title: "Missing fields", description: "Please fill out material, category and price", variant: "destructive" });
     }
+
+    // Check if rate already exists
+    const rateExists = rates.some((r) => r.material.toLowerCase() === newRate.material.toLowerCase() && r.category === newRate.category);
+    if (rateExists) {
+      return toast({ title: "Rate already exists", description: `${newRate.material} in ${newRate.category} category is already in your list`, variant: "destructive" });
+    }
+
     createMutation.mutate({ ...newRate, sellerId: currentUser.id });
   };
 
   const handleDeleteRate = (id: string) => {
-    if (!confirm("Are you sure you want to remove this material?")) return;
-    deleteMutation.mutate(id);
+    setDeletingRateId(id);
+  };
+
+  const confirmDeleteRate = () => {
+    if (deletingRateId) {
+      deleteMutation.mutate(deletingRateId);
+      setDeletingRateId(null);
+    }
   };
 
   return (
@@ -239,18 +266,55 @@ export default function RatesPage() {
                       <DialogDescription>Add a material and price for your shop</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 mt-4">
+                      {rates.length > 0 && (
+                        <div className="p-3 rounded-md bg-muted border border-muted-foreground/30">
+                          <p className="text-xs font-semibold text-muted-foreground mb-2">Your Current Rates:</p>
+                          <div className="space-y-1 max-h-40 overflow-y-auto">
+                            {rates.map((rate) => (
+                              <div key={rate.id} className="text-xs text-muted-foreground flex justify-between">
+                                <span>{rate.material} ({rate.category})</span>
+                                <span className="font-semibold">{rate.price}/{rate.unit}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       <div className="space-y-2">
                         <Label htmlFor="material">Material</Label>
-                        <Input id="material" value={newRate.material} onChange={(e) => setNewRate({ ...newRate, material: e.target.value })} />
+                        <Input id="material" value={newRate.material} onChange={(e) => setNewRate({ ...newRate, material: e.target.value })} placeholder="e.g. Aluminum Cans" />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="category">Category</Label>
-                        <Input id="category" value={newRate.category} onChange={(e) => setNewRate({ ...newRate, category: e.target.value })} />
+                        <Select value={newRate.category} onValueChange={(v) => setNewRate({ ...newRate, category: v })}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories.map((cat) => (
+                              <SelectItem key={cat} value={cat}>
+                                {categoryEmojis[cat]} {cat}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-2">
                           <Label htmlFor="price">Price</Label>
-                          <Input id="price" value={newRate.price} onChange={(e) => setNewRate({ ...newRate, price: e.target.value })} />
+                          <Input
+                            id="price"
+                            placeholder="₱ Price"
+                            value={newRate.price}
+                            onChange={(e) => {
+                              let value = e.target.value.replace(/[^\d₱]/g, "");
+                              if (value === "₱" || value === "") {
+                                setNewRate({ ...newRate, price: "₱" });
+                                return;
+                              }
+                              const numericValue = value.replace(/₱/g, "");
+                              setNewRate({ ...newRate, price: `₱${numericValue}` });
+                            }}
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="unit">Unit</Label>
@@ -263,7 +327,7 @@ export default function RatesPage() {
                         </div>
                       </div>
                       <div className="flex gap-2 justify-end">
-                        <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+                        <Button variant="outline" onClick={() => { setIsAddOpen(false); setNewRate({ material: "", category: "", price: "₱", icon: "📦", unit: "kg" }); }}>Cancel</Button>
                         <Button onClick={handleAddRate} disabled={createMutation.isPending}>{createMutation.isPending ? 'Adding...' : 'Add Rate'}</Button>
                       </div>
                     </div>
@@ -355,9 +419,25 @@ export default function RatesPage() {
                             </DialogContent>
                           </Dialog>
 
-                          <Button size="icon" variant="ghost" onClick={() => handleDeleteRate(rate.id)} data-testid={`button-delete-rate-${rate.id}`}>
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
+                          <AlertDialog open={deletingRateId === rate.id} onOpenChange={(open) => !open && setDeletingRateId(null)}>
+                            <Button size="icon" variant="ghost" onClick={() => handleDeleteRate(rate.id)} data-testid={`button-delete-rate-${rate.id}`}>
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Rate</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to remove <strong>{rate.material}</strong> from your rate list? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={confirmDeleteRate} className="bg-destructive hover:bg-destructive/90">
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       )}
                     </div>
