@@ -7,7 +7,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Recycle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/firebase/firebase";
+
+function getFirebaseAuthErrorMessage(error: any) {
+  if (!error) return "Invalid email or password.";
+  switch (error.code) {
+    case "auth/invalid-email":
+      return "Enter a valid email address.";
+    case "auth/user-not-found":
+      return "No account found with this email.";
+    case "auth/wrong-password":
+      return "Incorrect password.";
+    case "auth/operation-not-allowed":
+      return "Email/password login is disabled. Enable Email/Password sign-in in your Firebase console.";
+    case "auth/too-many-requests":
+      return "Too many login attempts. Please try again later.";
+    default:
+      return error.message || "Invalid email or password.";
+  }
+}
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -17,18 +36,16 @@ export default function Login() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: { email: string; password: string }) => {
-      const response = await apiRequest("POST", "/api/auth/login", data);
-      if (!response.ok) throw await response.json();
-      return await response.json();
+      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+      return userCredential.user;
     },
-    onSuccess: (data: any) => {
-      if (data.requiresOtp) {
-        toast({ title: "OTP sent", description: "A verification code was sent to your phone" });
-        setLocation(`/verify-otp?userId=${encodeURIComponent(data.userId)}`);
-        return;
-      }
-
-      localStorage.setItem("user", JSON.stringify(data.user));
+    onSuccess: (user: any) => {
+      localStorage.setItem("user", JSON.stringify({
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        // Add other fields as needed
+      }));
       toast({
         title: "Login successful!",
         description: "Welcome back to Waiz",
@@ -38,7 +55,7 @@ export default function Login() {
     onError: (error: any) => {
       toast({
         title: "Login failed",
-        description: error.message || "Invalid email or password",
+        description: getFirebaseAuthErrorMessage(error),
         variant: "destructive",
       });
     },
@@ -64,11 +81,11 @@ export default function Login() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email or Phone</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
-                type="text"
-                placeholder="Enter your email or phone"
+                type="email"
+                placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

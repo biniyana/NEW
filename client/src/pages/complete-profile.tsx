@@ -1,230 +1,297 @@
-import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { User as UserType } from "@shared/schema";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Recycle, Home, Store } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { MapPin, Mail, Phone, User as UserIcon, Home } from "lucide-react";
+import MapPinner from "@/components/MapPinner";
+import { useMutation } from "@tanstack/react-query";
+import { onAuthStateChanged, updateProfile } from "firebase/auth";
+import { ref, set } from "firebase/database";
+import { auth, database } from "@/firebase/firebase";
 
-/**
- * Complete Profile Page
- * 
- * Users (especially from Google OAuth) are redirected here if their profile is incomplete.
- * They can fill in missing required fields: phone, address, and select their user type.
- */
-export default function CompleteProfilePage() {
+
+
+
+export default function CompleteProfile() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [currentUser, setCurrentUser] = useState<UserType | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [userType, setUserType] = useState<"household" | "junkshop" | null>(null);
   const [formData, setFormData] = useState({
+    name: "",
     phone: "",
     address: "",
-    userType: "household" as "household" | "junkshop",
   });
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [showMapPinner, setShowMapPinner] = useState(false);
+  const [authUid, setAuthUid] = useState<string | null>(null);
 
   useEffect(() => {
-    const userStr = localStorage.getItem("user");
-    if (!userStr || userStr === "undefined") {
-      setLocation("/login");
-      return;
-    }
-
-    const user = JSON.parse(userStr);
-    setCurrentUser(user);
-
-    // Pre-fill form with existing values
-    setFormData({
-      phone: user.phone || "",
-      address: user.address || "",
-      userType: user.userType || "household",
-    });
-  }, [setLocation]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!currentUser) {
-      toast({ title: "Error", description: "User not loaded", variant: "destructive" });
-      return;
-    }
-
-    // Validate required fields
-    if (!formData.phone.trim()) {
-      toast({ title: "Required", description: "Phone number is required", variant: "destructive" });
-      return;
-    }
-
-    if (!formData.address.trim()) {
-      toast({ title: "Required", description: "Address is required", variant: "destructive" });
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      // Update user profile
-      const res = await fetch(`/api/users/${currentUser.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          phone: formData.phone,
-          address: formData.address,
-          userType: formData.userType,
-        }),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Failed to update profile");
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user?.uid) {
+        setAuthUid(user.uid);
+      } else {
+        const stored = localStorage.getItem("user");
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            setAuthUid(parsed?.uid ?? null);
+          } catch {
+            setAuthUid(null);
+          }
+        } else {
+          setAuthUid(null);
+        }
       }
+    });
+    return unsubscribe;
+  }, []);
 
-      const updatedUser = await res.json();
+  const signupMutation = useMutation({
+    mutationFn: async (data: any) => {
+      try {
+        const uid = auth.currentUser?.uid || authUid;
+        console.log('Profile submission - UID:', uid, 'Auth currentUser:', !!auth.currentUser);
+        
+        if (!uid) {
+          throw new Error("No authenticated user found. Please log in and try again.");
+        }
 
-      // Update localStorage with complete profile
-      const completeUser = {
-        ...updatedUser,
-        userType: updatedUser.userType || formData.userType,
+        if (auth.currentUser && data.name) {
+          await updateProfile(auth.currentUser, { displayName: data.name }).catch((err) => {
+            console.warn('Failed to update display name:', err.message);
+          });
+        }
+
+        console.log('Writing to database at users/', uid);
+        const userRef = ref(database, `users/${uid}`);
+        const userData = {
+          uid,
+          name: data.name,
+          phone: data.phone,
+          address: data.address,
+          userType: data.userType,
+          latitude: data.latitude ?? null,
+          longitude: data.longitude ?? null,
+          profileComplete: true,
+          updatedAt: new Date().toISOString(),
+        };
+
+        await set(userRef, userData);
+        console.log('Profile saved to database successfully');
+        return userData;
+      } catch (err: any) {
+        console.error('Error in profile submission:', err);
+        throw err;
+      }
+    },
+    onSuccess: (data: any) => {
+      console.log('Profile mutation success, redirecting to dashboard');
+      localStorage.setItem("user", JSON.stringify({
+        uid: data.uid,
+        displayName: data.name,
+        phone: data.phone,
+        address: data.address,
+        userType: data.userType,
+        latitude: data.latitude,
+        longitude: data.longitude,
         profileComplete: true,
-      };
-      localStorage.setItem("user", JSON.stringify(completeUser));
-
+      }));
       toast({
-        title: "Profile Complete!",
-        description: "Welcome to Waiz. Redirecting to dashboard...",
+        title: "Profile saved",
+        description: "Your profile has been connected to your account.",
       });
-
-      // Redirect to dashboard
-      setTimeout(() => setLocation("/dashboard"), 1500);
-    } catch (err: any) {
+      setLocation("/dashboard");
+    },
+    onError: (error: any) => {
+      console.error('Profile mutation error:', error);
       toast({
-        title: "Failed to Update Profile",
-        description: err.message || "Please try again",
+        title: "Save failed",
+        description: error.message || "Could not save your profile.",
         variant: "destructive",
       });
-    } finally {
-      setIsSubmitting(false);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Check if authenticated
+    const currentUid = auth.currentUser?.uid || authUid;
+    if (!currentUid) {
+      toast({
+        title: "Not authenticated",
+        description: "Please log in before completing your profile.",
+        variant: "destructive",
+      });
+      return;
     }
+
+    // Validate form fields
+    if (!formData.name?.trim() || !formData.phone?.trim() || !formData.address?.trim()) {
+      toast({
+        title: "Missing fields",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!userType) {
+      toast({
+        title: "Select account type",
+        description: "Please choose if you are a household or junkshop",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (userType === 'junkshop' && (latitude === null || longitude === null)) {
+      toast({ title: 'Set shop location', description: 'Please pin your junkshop location before signing up', variant: 'destructive' });
+      return;
+    }
+
+    const payload: any = { ...formData, userType };
+    if (latitude !== null && longitude !== null) {
+      payload.latitude = latitude;
+      payload.longitude = longitude;
+    }
+
+    signupMutation.mutate(payload);
   };
 
-  if (!currentUser) return null;
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-background">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Complete Your Profile</CardTitle>
-          <CardDescription>
-            Welcome! Please fill in the required information to finish setting up your account.
-          </CardDescription>
+        <CardHeader className="text-center">
+          <div className="mx-auto w-16 h-16 rounded-lg bg-gradient-to-br from-primary to-chart-2 flex items-center justify-center mb-4">
+            <Recycle className="w-10 h-10 text-primary-foreground" />
+          </div>
+          <CardTitle className="text-2xl">Join Waiz</CardTitle>
+          <CardDescription>Create your account</CardDescription>
         </CardHeader>
-
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Display Name (read-only) */}
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
-                <UserIcon className="w-4 h-4 text-muted-foreground" />
-                <span className="text-foreground">{currentUser.name}</span>
-              </div>
-              <p className="text-xs text-muted-foreground">Provided by your authentication</p>
-            </div>
-
-            {/* Email (read-only) */}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
-                <Mail className="w-4 h-4 text-muted-foreground" />
-                <span className="text-foreground text-sm break-all">{currentUser.email}</span>
-              </div>
-              <p className="text-xs text-muted-foreground">Cannot be changed</p>
-            </div>
-
-            {/* Phone Number (required) */}
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number *</Label>
-              <div className="flex items-center gap-2">
-                <Phone className="w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="+63 917 123 4567"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  required
-                  data-testid="input-phone"
-                />
-              </div>
-            </div>
-
-            {/* Address (required) */}
-            <div className="space-y-2">
-              <Label htmlFor="address">Address *</Label>
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="address"
-                  placeholder="123 Street, City, Province"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  required
-                  data-testid="input-address"
-                />
-              </div>
-            </div>
-
-            {/* User Type Selection */}
-            <div className="space-y-3">
-              <Label>Account Type *</Label>
+              <Label>I am a:</Label>
               <div className="grid grid-cols-2 gap-3">
-                <button
+                <Button
                   type="button"
-                  onClick={() => setFormData({ ...formData, userType: "household" })}
-                  className={`p-3 rounded-lg border-2 transition-colors text-center ${
-                    formData.userType === "household"
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/50"
-                  }`}
-                  data-testid="button-household"
+                  variant={userType === "household" ? "default" : "outline"}
+                  className="h-auto py-3"
+                  onClick={() => setUserType("household")}
+                  data-testid="button-type-household"
                 >
-                  <div className="text-xl mb-1">🏠</div>
-                  <div className="text-sm font-medium">Household</div>
-                  <div className="text-xs text-muted-foreground">Sell recyclables</div>
-                </button>
-
-                <button
+                  <Home className="w-4 h-4 mr-2" />
+                  Household
+                </Button>
+                <Button
                   type="button"
-                  onClick={() => setFormData({ ...formData, userType: "junkshop" })}
-                  className={`p-3 rounded-lg border-2 transition-colors text-center ${
-                    formData.userType === "junkshop"
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/50"
-                  }`}
-                  data-testid="button-junkshop"
+                  variant={userType === "junkshop" ? "default" : "outline"}
+                  className="h-auto py-3"
+                  onClick={() => setUserType("junkshop")}
+                  data-testid="button-type-junkshop"
                 >
-                  <div className="text-xl mb-1">🏪</div>
-                  <div className="text-sm font-medium">Junkshop</div>
-                  <div className="text-xs text-muted-foreground">Manage collections</div>
-                </button>
+                  <Store className="w-4 h-4 mr-2" />
+                  Junkshop
+                </Button>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Enter your name"
+                value={formData.name}
+                onChange={(e) => handleInputChange("name", e.target.value)}
+                required
+                data-testid="input-name"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="+63 XXX XXX XXXX"
+                value={formData.phone}
+                onChange={(e) => handleInputChange("phone", e.target.value)}
+                required
+                data-testid="input-phone"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="address">
+                {userType === "junkshop" ? "Junkshop Address in Baguio" : "Address in Baguio"}
+              </Label>
+              <Input
+                id="address"
+                type="text"
+                placeholder="Street, Barangay, Baguio City"
+                value={formData.address}
+                onChange={(e) => handleInputChange("address", e.target.value)}
+                required
+                data-testid="input-address"
+              />
+              <p className="text-xs text-muted-foreground">📍 Used for location-based matching</p>
+
+              {userType === 'junkshop' && (
+                <div className="mt-2">
+                  <Button size="sm" variant="outline" onClick={() => setShowMapPinner((s) => !s)}>
+                    {showMapPinner ? 'Hide Location Pin' : 'Set Shop Location on Map'}
+                  </Button>
+
+                  {showMapPinner && (
+                    <div className="mt-3">
+                      <MapPinner
+                        initialLatitude={latitude ?? undefined}
+                        initialLongitude={longitude ?? undefined}
+                        address={formData.address}
+                        onLocationSelect={(lat, lng, addr) => {
+                          setLatitude(lat);
+                          setLongitude(lng);
+                          if (addr) setFormData(prev => ({ ...prev, address: addr }));
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {latitude !== null && longitude !== null && (
+                    <p className="text-sm text-muted-foreground mt-2">Pinned location: {latitude.toFixed(6)}, {longitude.toFixed(6)}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <Button
               type="submit"
               className="w-full"
-              disabled={isSubmitting}
-              data-testid="button-complete"
+              disabled={!userType || signupMutation.isPending}
+              data-testid="button-submit"
             >
-              {isSubmitting ? "Completing..." : "Complete Profile & Enter"}
+              {signupMutation.isPending ? "Submitting..." : "Submit"}
             </Button>
           </form>
+
+          <div className="mt-6 text-center space-y-3">
+
+
+          </div>
+          
         </CardContent>
       </Card>
     </div>
   );
 }
+
+
