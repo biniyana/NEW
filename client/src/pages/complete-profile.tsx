@@ -33,63 +33,74 @@ export default function CompleteProfile() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user?.uid) {
         setAuthUid(user.uid);
+
+        // Check if profile is already complete
+        const stored = localStorage.getItem("user");
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (parsed?.profileComplete) {
+              console.log("Profile already complete, redirecting to dashboard");
+              setLocation("/dashboard");
+              return;
+            }
+          } catch {
+            // Continue with page
+          }
+        }
       } else {
         const stored = localStorage.getItem("user");
         if (stored) {
           try {
             const parsed = JSON.parse(stored);
+            if (parsed?.profileComplete) {
+              console.log("Profile already complete, redirecting to dashboard");
+              setLocation("/dashboard");
+              return;
+            }
             setAuthUid(parsed?.uid ?? null);
           } catch {
             setAuthUid(null);
           }
         } else {
-          setAuthUid(null);
+          // Not authenticated, redirect to login
+          setLocation("/login");
         }
       }
     });
     return unsubscribe;
-  }, []);
+  }, [setLocation]);
 
   const signupMutation = useMutation({
     mutationFn: async (data: any) => {
-      try {
-        const uid = auth.currentUser?.uid || authUid;
-        console.log('Profile submission - UID:', uid, 'Auth currentUser:', !!auth.currentUser);
-        
-        if (!uid) {
-          throw new Error("No authenticated user found. Please log in and try again.");
-        }
-
-        if (auth.currentUser && data.name) {
-          await updateProfile(auth.currentUser, { displayName: data.name }).catch((err) => {
-            console.warn('Failed to update display name:', err.message);
-          });
-        }
-
-        console.log('Writing to database at users/', uid);
-        const userRef = ref(database, `users/${uid}`);
-        const userData = {
-          uid,
-          name: data.name,
-          phone: data.phone,
-          address: data.address,
-          userType: data.userType,
-          latitude: data.latitude ?? null,
-          longitude: data.longitude ?? null,
-          profileComplete: true,
-          updatedAt: new Date().toISOString(),
-        };
-
-        await set(userRef, userData);
-        console.log('Profile saved to database successfully');
-        return userData;
-      } catch (err: any) {
-        console.error('Error in profile submission:', err);
-        throw err;
+      const uid = auth.currentUser?.uid || authUid;
+      if (!uid) {
+        throw new Error("No authenticated user found. Please log in and try again.");
       }
+
+      if (auth.currentUser && data.name) {
+        await updateProfile(auth.currentUser, { displayName: data.name }).catch(() => {
+          // Do not block the update if displayName cannot be set.
+        });
+      }
+
+      const userRef = ref(database, `users/${uid}`);
+      const userData = {
+        uid,
+        name: data.name,
+        phone: data.phone,
+        address: data.address,
+        userType: data.userType,
+        latitude: data.latitude ?? null,
+        longitude: data.longitude ?? null,
+        profileComplete: true,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await set(userRef, userData);
+      return userData;
     },
     onSuccess: (data: any) => {
-      console.log('Profile mutation success, redirecting to dashboard');
       localStorage.setItem("user", JSON.stringify({
         uid: data.uid,
         displayName: data.name,
@@ -107,7 +118,6 @@ export default function CompleteProfile() {
       setLocation("/dashboard");
     },
     onError: (error: any) => {
-      console.error('Profile mutation error:', error);
       toast({
         title: "Save failed",
         description: error.message || "Could not save your profile.",
@@ -243,7 +253,7 @@ export default function CompleteProfile() {
                 required
                 data-testid="input-address"
               />
-              <p className="text-xs text-muted-foreground">📍 Used for location-based matching</p>
+              <p className="text-xs text-muted-foreground">📍 Location</p>
 
               {userType === 'junkshop' && (
                 <div className="mt-2">

@@ -8,7 +8,8 @@ import { Recycle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/firebase/firebase";
+import { ref, get } from "firebase/database";
+import { auth, database } from "@/firebase/firebase";
 
 function getFirebaseAuthErrorMessage(error: any) {
   if (!error) return "Invalid email or password.";
@@ -37,20 +38,36 @@ export default function Login() {
   const loginMutation = useMutation({
     mutationFn: async (data: { email: string; password: string }) => {
       const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
-      return userCredential.user;
+      const uid = userCredential.user.uid;
+
+      // Fetch user profile from Firebase to check if complete
+      const userRef = ref(database, `users/${uid}`);
+      const snapshot = await get(userRef);
+      const userProfile = snapshot.val();
+
+      return {
+        uid,
+        email: userCredential.user.email,
+        displayName: userCredential.user.displayName,
+        profileComplete: userProfile?.profileComplete ?? false,
+        ...userProfile,
+      };
     },
-    onSuccess: (user: any) => {
-      localStorage.setItem("user", JSON.stringify({
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        // Add other fields as needed
-      }));
+    onSuccess: (userData: any) => {
+      localStorage.setItem("user", JSON.stringify(userData));
       toast({
         title: "Login successful!",
         description: "Welcome back to Waiz",
       });
-      setLocation("/dashboard");
+
+      // Check if profile is complete
+      if (userData.profileComplete) {
+        console.log("Profile complete, redirecting to dashboard");
+        setLocation("/dashboard");
+      } else {
+        console.log("Profile incomplete, redirecting to complete-profile");
+        setLocation("/complete-profile");
+      }
     },
     onError: (error: any) => {
       toast({

@@ -39,17 +39,20 @@ export default function Signup() {
       return userCredential.user;
     },
     onSuccess: (user) => {
-      // Minimal local storage save
+      // New account - profile is incomplete
       localStorage.setItem("user", JSON.stringify({
         uid: user.uid,
         email: user.email,
+        displayName: user.displayName,
+        profileComplete: false,
       }));
       
       toast({
         title: "Account created!",
-        description: "Welcome to Waiz",
+        description: "Please complete your profile to get started",
       });
-      setLocation("/dashboard");
+      // Redirect to complete profile page
+      setLocation("/complete-profile");
     },
     onError: (error: any) => {
       toast({

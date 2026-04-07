@@ -9,32 +9,94 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { User as UserType, Item } from "@shared/schema";
 import { MapPin, Mail, Phone, User } from "lucide-react";
-// reuse item card from marketplace so household users can see their own listings with photos
-import { ItemCard } from "./marketplace";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { ref, onValue } from "firebase/database";
+import { database, auth } from "@/firebase/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 export default function ProfilePage() {
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
+  const [authUid, setAuthUid] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [items, setItems] = useState<Item[]>([]);
   const { toast } = useToast();
 
-  const { data: items = [] } = useQuery<Item[]>({
-    queryKey: ["/api/items"],
-    queryFn: async () => {
-      return await fetch("/api/items").then(res => res.json());
-    },
-  });
-
-
-
+  // Load current user from localStorage and get auth UID
   useEffect(() => {
     const userStr = localStorage.getItem("user");
     if (userStr && userStr !== "undefined") {
       setCurrentUser(JSON.parse(userStr));
     }
+
+    // Also get the UID from Firebase auth
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user?.uid) {
+        console.log("Auth UID:", user.uid);
+        setAuthUid(user.uid);
+      }
+    });
+
+    return unsubscribe;
   }, []);
+
+  // Fetch items from Firebase for current user
+  useEffect(() => {
+    if (!authUid) {
+      console.log("No auth UID, skipping items fetch");
+      return;
+    }
+
+    console.log("Fetching items for user:", authUid);
+    const itemsRef = ref(database, "items");
+
+    const unsubscribe = onValue(
+      itemsRef,
+      (snapshot) => {
+        const data = snapshot.val();
+        console.log("Items from Firebase:", data);
+        if (data) {
+          const itemsList: Item[] = Object.values(data)
+            .map((item: any) => ({
+              id: item.id,
+              title: item.title,
+              category: item.category,
+              price: item.price,
+              description: item.description || null,
+              imageUrl: item.imageUrl || null,
+              imageUrls: item.imageUrls || null,
+              sellerId: item.sellerId,
+              sellerName: item.sellerName,
+              emoji: item.emoji || null,
+              status: item.status || "available",
+              createdAt: item.createdAt ? new Date(item.createdAt) : null,
+            }))
+            // Filter only items by current user (compare with Firebase auth UID)
+            .filter((item) => {
+              const matches = item.sellerId === authUid;
+              console.log(`Checking item ${item.id}: sellerId=${item.sellerId}, authUid=${authUid}, matches=${matches}`);
+              return matches;
+            });
+
+          console.log("Filtered items for current user:", itemsList);
+          setItems(itemsList);
+        } else {
+          setItems([]);
+        }
+      },
+      (error) => {
+        console.error("Error fetching items from Firebase:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load your marketplace items",
+          variant: "destructive",
+        });
+      }
+    );
+
+    return () => unsubscribe();
+  }, [authUid, toast]);
 
   const [isLocationOpen, setIsLocationOpen] = useState(false);
   const [tempLat, setTempLat] = useState<number | null>(null);
@@ -92,9 +154,8 @@ export default function ProfilePage() {
 
   const isHousehold = currentUser.userType === "household";
 
-  // Calculate statistics
-  const userItems = items.filter(item => item.sellerId === currentUser.id);
-  const itemsListed = userItems.length;
+  // Calculate statistics (items already filtered by current user in useEffect)
+  const itemsListed = items.length;
 
   return (
     <div className="space-y-6">
@@ -120,20 +181,25 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-    {/* Household user's own postings, include photos */}
+    {/* Household user's marketplace listing count */}
     {isHousehold && (
-      <div>
-        <h3 className="text-2xl font-semibold mt-8">Your Marketplace Listings</h3>
-        {userItems.length === 0 ? (
-          <p className="text-sm text-muted-foreground">You haven't posted any items yet.</p>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
-            {userItems.map((item) => (
-              <ItemCard key={item.id} item={item} currentUser={currentUser} />
-            ))}
+      <Card className="md:col-span-3">
+        <CardHeader>
+          <CardTitle>Marketplace Listings</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <div className="text-4xl font-bold text-primary">{items.length}</div>
+            <div>
+              <p className="text-sm text-muted-foreground">
+                {items.length === 0
+                  ? "You haven't posted any items yet. Head to Marketplace to get started!"
+                  : `You have listed ${items.length} item${items.length !== 1 ? "s" : ""} for sale`}
+              </p>
+            </div>
           </div>
-        )}
-      </div>
+        </CardContent>
+      </Card>
     )}
         <Card className="md:col-span-2">
           <CardHeader>

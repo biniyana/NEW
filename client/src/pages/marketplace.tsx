@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,9 @@ import { Plus, Edit, Trash2, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { uploadImageToCloudinary } from "@/utils/cloudinary";
+import { ref, set, update, remove, onValue, query } from "firebase/database";
+import { database, auth } from "@/firebase/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 const categories = ["All", "Plastic", "Paper", "Metal", "Glass", "Cardboard", "Copper"];
 
@@ -38,6 +41,9 @@ export default function MarketplacePage({ onNavigateToMessages }: MarketplacePag
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+  const [items, setItems] = useState<Item[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [authUid, setAuthUid] = useState<string | null>(null);
   const { toast } = useToast();
 
   const userStr = localStorage.getItem("user");
@@ -46,22 +52,79 @@ export default function MarketplacePage({ onNavigateToMessages }: MarketplacePag
 
   const isHousehold = currentUser?.userType === "household";
 
-  const { data: items = [], isLoading } = useQuery<Item[]>({
-    queryKey: ["/api/items", selectedCategory],
-    queryFn: async () => {
-      const url =
-        selectedCategory === "All"
-          ? "/api/items"
-          : `/api/items?category=${selectedCategory}`;
+  // Get Firebase auth UID
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user?.uid) {
+        setAuthUid(user.uid);
+      }
+    });
+    return unsubscribe;
+  }, []);
 
-      return await fetch(url).then((res) => res.json());
-    },
-  });
+  // Fetch items from Firebase in real-time
+  useEffect(() => {
+    setIsLoading(true);
+    const itemsRef = ref(database, "items");
+
+    const unsubscribe = onValue(
+      itemsRef,
+      (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          const itemsList: Item[] = Object.values(data).map((item: any) => ({
+            id: item.id,
+            title: item.title,
+            category: item.category,
+            price: item.price,
+            description: item.description || null,
+            imageUrl: item.imageUrl || null,
+            imageUrls: item.imageUrls || null,
+            sellerId: item.sellerId,
+            sellerName: item.sellerName,
+            emoji: item.emoji || null,
+            status: item.status || "available",
+            createdAt: item.createdAt ? new Date(item.createdAt) : null,
+          }));
+
+          // Filter by category if not "All"
+          const filtered =
+            selectedCategory === "All"
+              ? itemsList
+              : itemsList.filter((item) => item.category === selectedCategory);
+
+          setItems(filtered);
+        } else {
+          setItems([]);
+        }
+        setIsLoading(false);
+      },
+      (error) => {
+        console.error("Error fetching items from Firebase:", error);
+        setIsLoading(false);
+        toast({
+          title: "Error",
+          description: "Failed to load marketplace items",
+          variant: "destructive",
+        });
+      }
+    );
+
+    return () => unsubscribe();
+  }, [selectedCategory, toast]);
 
   const deleteItemMutation = useMutation({
     mutationFn: async (itemId: string) => {
-      const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-      return await apiRequest("DELETE", `/api/items/${itemId}`, { sellerId: currentUser.id });
+      const uid = auth.currentUser?.uid;
+      if (!uid) {
+        throw new Error("No authenticated user. Please log in.");
+      }
+
+      console.log("Deleting item from database:", itemId);
+      const itemRef = ref(database, `items/${itemId}`);
+      await remove(itemRef);
+      
+      return itemId;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -71,6 +134,7 @@ export default function MarketplacePage({ onNavigateToMessages }: MarketplacePag
       });
     },
     onError: (error: any) => {
+      console.error("Error deleting item:", error);
       toast({
         title: "Delete failed",
         description: error.message || "Failed to delete item",
@@ -149,6 +213,7 @@ export default function MarketplacePage({ onNavigateToMessages }: MarketplacePag
               key={item.id}
               item={item}
               currentUser={currentUser}
+              authUid={authUid}
               onDeleteItem={(itemId) => setDeletingItemId(itemId)}
               onEditItem={setEditingItem}
               navigate={navigate}
@@ -191,13 +256,14 @@ export default function MarketplacePage({ onNavigateToMessages }: MarketplacePag
 interface ItemCardProps {
   item: Item;
   currentUser: User | null;
+  authUid?: string | null;
   onDeleteItem?: (itemId: string) => void;
   onEditItem?: (item: Item) => void;
   navigate?: (path: string) => void;
 }
 
-export function ItemCard({ item, currentUser, onDeleteItem, onEditItem, navigate }: ItemCardProps) {
-  const isOwner = currentUser && item.sellerId === currentUser.id;
+export function ItemCard({ item, currentUser, authUid, onDeleteItem, onEditItem, navigate }: ItemCardProps) {
+  const isOwner = authUid && item.sellerId === authUid;
   const isJunkshop = currentUser?.userType === "junkshop";
 
   return (
@@ -296,10 +362,32 @@ function AddItemForm({ onClose }: AddItemFormProps) {
 
   const addItemMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest("POST", "/api/items", data);
+      const uid = auth.currentUser?.uid;
+      if (!uid) {
+        throw new Error("No authenticated user. Please log in.");
+      }
+
+      const itemId = `item_${Date.now()}`;
+      const itemData = {
+        id: itemId,
+        ...data,
+        sellerId: uid,
+        sellerName: currentUser?.name || "Unknown",
+        imageUrl: data.imageUrls?.[0] || "",
+        imageUrls: data.imageUrls || [],
+        status: "available",
+        createdAt: new Date().toISOString(),
+      };
+
+      console.log("Saving item to database:", itemId, itemData);
+      const itemRef = ref(database, `items/${itemId}`);
+      await set(itemRef, itemData);
+      
+      return itemData;
     },
 
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Item saved successfully");
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
 
       toast({
@@ -309,13 +397,36 @@ function AddItemForm({ onClose }: AddItemFormProps) {
 
       onClose();
     },
+    onError: (error: any) => {
+      console.error("Error saving item:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add item",
+        variant: "destructive",
+      });
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
-
     e.preventDefault();
 
-    if (!currentUser) return;
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to post an item",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.title || !formData.category || !formData.price) {
+      toast({
+        title: "Missing fields",
+        description: "Please fill in title, category, and price",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const emoji = categoryEmojis[formData.category] || "📦";
 
@@ -326,7 +437,6 @@ function AddItemForm({ onClose }: AddItemFormProps) {
       sellerName: currentUser.name,
       imageUrl: formData.imageUrls[0] || "",
     });
-
   };
 
   return (
@@ -499,10 +609,22 @@ function EditItemForm({ item, onClose }: EditItemFormProps) {
 
   const updateItemMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest("PATCH", `/api/items/${item.id}`, {
+      const uid = auth.currentUser?.uid;
+      if (!uid) {
+        throw new Error("No authenticated user. Please log in.");
+      }
+
+      const updateData = {
         ...data,
-        sellerId: currentUser?.id,
-      });
+        imageUrl: data.imageUrls?.[0] || "",
+        imageUrls: data.imageUrls || [],
+      };
+
+      console.log("Updating item in database:", item.id, updateData);
+      const itemRef = ref(database, `items/${item.id}`);
+      await update(itemRef, updateData);
+
+      return updateData;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -513,6 +635,7 @@ function EditItemForm({ item, onClose }: EditItemFormProps) {
       onClose();
     },
     onError: (error: any) => {
+      console.error("Error updating item:", error);
       toast({
         title: "Update failed",
         description: error.message || "Failed to update item",
@@ -523,7 +646,24 @@ function EditItemForm({ item, onClose }: EditItemFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser) return;
+    
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to edit an item",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.title || !formData.category || !formData.price) {
+      toast({
+        title: "Missing fields",
+        description: "Please fill in title, category, and price",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const emoji = categoryEmojis[formData.category] || "📦";
 
