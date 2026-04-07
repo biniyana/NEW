@@ -128,7 +128,7 @@ export default function Dashboard() {
         <div className="px-6 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-lg overflow-hidden border border-card-border bg-white flex items-center justify-center">
+              <div className="w-12 h-12 rounded-lg overflow-hidden flex items-center justify-center">
                 <img src="/waiz logo.png" alt="Waiz logo" className="w-10 h-10 object-cover" />
               </div>
               <h1 className="text-xl font-bold text-foreground">Waiz</h1>
