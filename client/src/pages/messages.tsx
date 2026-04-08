@@ -11,6 +11,8 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Message, User } from "@shared/schema";
 import { Send, MessageCircle, Search, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ref, onValue, set, update } from "firebase/database";
+import { database } from "@/firebase/firebase";
 
 export default function MessagesPage() {
   const userStr = localStorage.getItem("user");
@@ -20,14 +22,47 @@ export default function MessagesPage() {
   const [messageText, setMessageText] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [chatSearchTerm, setChatSearchTerm] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isSending, setIsSending] = useState(false);
   const { toast } = useToast();
 
-  const { data: messages = [] } = useQuery<Message[]>({
-    queryKey: ["/api/messages"],
-    queryFn: async () => {
-      return await fetch("/api/messages").then(res => res.json());
-    },
-  });
+  // Real-time listener for messages from Firebase
+  useEffect(() => {
+    const messagesRef = ref(database, "messages");
+    
+    const unsubscribe = onValue(
+      messagesRef,
+      (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          const messagesList: Message[] = Object.values(data).map((msg: any) => ({
+            id: msg.id,
+            senderId: msg.senderId,
+            senderName: msg.senderName,
+            receiverId: msg.receiverId,
+            receiverName: msg.receiverName,
+            content: msg.content,
+            read: msg.read || false,
+            timestamp: msg.timestamp,
+          }));
+          console.log("✅ [Messages] Received messages from Firebase:", messagesList.length);
+          setMessages(messagesList);
+        } else {
+          setMessages([]);
+        }
+      },
+      (error) => {
+        console.error("Error fetching messages from Firebase:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load messages",
+          variant: "destructive",
+        });
+      }
+    );
+
+    return () => unsubscribe();
+  }, [toast]);
 
   const [location] = useLocation();
 
@@ -66,12 +101,11 @@ export default function MessagesPage() {
 
     const markRead = async () => {
       try {
-        await Promise.all(
-          unreadToMark.map((message) =>
-            apiRequest("PATCH", `/api/messages/${message.id}/read`)
-          )
-        );
-        queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
+        // Mark messages as read in Firebase
+        for (const message of unreadToMark) {
+          const messageRef = ref(database, `messages/${message.id}`);
+          await update(messageRef, { read: true });
+        }
       } catch (error) {
         console.error("Failed to mark messages read", error);
       }
@@ -158,36 +192,40 @@ export default function MessagesPage() {
     fetchUserName();
   }, [selectedUser, conversations]);
 
-  const sendMessageMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", "/api/messages", data);
-      return await response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
+  const sendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageText.trim() || !selectedUser || !currentUser) return;
+
+    setIsSending(true);
+    try {
+      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const messageRef = ref(database, `messages/${messageId}`);
+
+      const receiver = conversations.find((c) => c.userId === selectedUser);
+      const messageData = {
+        id: messageId,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        receiverId: selectedUser,
+        receiverName: receiver?.userName || selectedUserName || "Unknown",
+        content: messageText,
+        read: false,
+        timestamp: new Date().toISOString(),
+      };
+
+      await set(messageRef, messageData);
+      console.log("✅ Message sent to Firebase:", messageId);
       setMessageText("");
-    },
-    onError: (error: any) => {
+    } catch (error: any) {
+      console.error("Error sending message:", error);
       toast({
         title: "Failed to send message",
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
-
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!messageText.trim() || !selectedUser) return;
-
-    const receiver = conversations.find((c) => c.userId === selectedUser);
-    sendMessageMutation.mutate({
-      senderId: currentUser?.id,
-      senderName: currentUser?.name,
-      receiverId: selectedUser,
-      receiverName: receiver?.userName || selectedUserName || "Unknown",
-      content: messageText,
-    });
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -336,7 +374,7 @@ export default function MessagesPage() {
                   </div>
                 </ScrollArea>
                 <div className="border-t border-border p-4">
-                  <form onSubmit={handleSendMessage} className="flex gap-2">
+                  <form onSubmit={sendMessage} className="flex gap-2">
                     <Input
                       placeholder="Type a message..."
                       value={messageText}
@@ -345,7 +383,7 @@ export default function MessagesPage() {
                     />
                     <Button
                       type="submit"
-                      disabled={!messageText.trim() || sendMessageMutation.isPending}
+                      disabled={!messageText.trim() || isSending}
                       data-testid="button-send"
                     >
                       <Send className="w-4 h-4" />

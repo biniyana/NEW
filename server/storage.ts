@@ -22,6 +22,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  createOrUpdateUser(id: string, data: Partial<User>): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
 
@@ -451,6 +452,40 @@ export class MemStorage implements IStorage {
     };
     this.users.set(id, user);
     return user;
+  }
+
+  async createOrUpdateUser(id: string, data: Partial<User>): Promise<User> {
+    const parseCoord = (v: any) => (v === undefined || v === null ? null : String(Number(v)));
+    const existingUser = this.users.get(id);
+    
+    if (existingUser) {
+      // Update existing user
+      const updated: User = {
+        ...existingUser,
+        ...data,
+        id, // Ensure ID doesn't change
+        latitude: data.latitude !== undefined ? parseCoord(data.latitude) : existingUser.latitude,
+        longitude: data.longitude !== undefined ? parseCoord(data.longitude) : existingUser.longitude,
+      };
+      this.users.set(id, updated);
+      return updated;
+    } else {
+      // Create new user with specified ID
+      const user: User = {
+        name: data.name || "",
+        email: data.email || "",
+        phone: data.phone || "",
+        address: data.address || "",
+        password: data.password || "",
+        userType: data.userType || "household",
+        id,
+        latitude: parseCoord(data.latitude),
+        longitude: parseCoord(data.longitude),
+        createdAt: new Date(),
+      };
+      this.users.set(id, user);
+      return user;
+    }
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {

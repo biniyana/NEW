@@ -41,6 +41,7 @@ interface MaterialInventory {
 export default function JunkshopUI({ currentUser, onNavigate }: { currentUser: UserType; onNavigate: (section: string) => void }) {
   const { toast } = useToast();
   const [activeNav, setActiveNav] = useState("dashboard");
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [transactions, setTransactions] = useState<MaterialTransaction[]>([]);
   const [inventory, setInventory] = useState<MaterialInventory[]>([]);
   const [dailyStats, setDailyStats] = useState<DailyStats>({
@@ -193,6 +194,21 @@ export default function JunkshopUI({ currentUser, onNavigate }: { currentUser: U
   const handleNavigation = (section: string) => {
     setActiveNav(section);
     onNavigate(section);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch (err) {
+      console.warn('Logout request failed:', err);
+    }
+    localStorage.removeItem("user");
+    setShowLogoutConfirm(false);
+    window.location.href = "/";
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(true);
   };
 
   // Dashboard Content
@@ -535,7 +551,7 @@ export default function JunkshopUI({ currentUser, onNavigate }: { currentUser: U
 
         {/* Logout Button */}
         <div className="p-4 border-t border-slate-800">
-          <Button variant="ghost" className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800">
+          <Button variant="ghost" className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800" onClick={confirmLogout}>
             <LogOut className="w-4 h-4 mr-2" />
             Logout
           </Button>
@@ -574,6 +590,26 @@ export default function JunkshopUI({ currentUser, onNavigate }: { currentUser: U
           )}
         </div>
       </main>
+
+      {/* Logout Confirmation Dialog */}
+      <Dialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Logout</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to logout? You'll need to log back in to access your account.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 justify-end mt-6">
+            <Button variant="outline" onClick={() => setShowLogoutConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleLogout}>
+              Logout
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -14,6 +14,8 @@ import { User, Rate } from "@shared/schema";
 import { Edit2, Loader2, Trash2, Plus, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { database } from "@/firebase/firebase";
+import { ref, onValue, set, update, remove, push } from "firebase/database";
 
 const categories = ["Plastic", "Paper", "Metal", "Glass", "Cardboard", "Copper"];
 
@@ -49,24 +51,76 @@ export default function RatesPage() {
     enabled: !isJunkshop,
   });
 
-  // Junkshop view: own rates for editing
-  const { data: rates = [], isLoading } = useQuery<Rate[]>({
-    queryKey: ["/api/rates", currentUser?.id],
-    queryFn: async () => {
-      const url = currentUser?.id ? `/api/rates?sellerId=${encodeURIComponent(currentUser.id)}` : "/api/rates";
-      console.log("🔍 [Frontend Rates] Fetching from:", url);
-      const response = await fetch(url);
-      console.log("📡 [Frontend Rates] Response status:", response.status);
-      const data = await response.json();
-      console.log("✅ [Frontend Rates] Received data:", data);
-      console.log("📊 [Frontend Rates] Count:", Array.isArray(data) ? data.length : "not an array");
-      return data || [];
-    },
-    enabled: isJunkshop,
-  });
+  // Junkshop view: Real-time rates from Firebase RTDB
+  const [rates, setRates] = useState<Rate[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isJunkshop || !currentUser?.id) {
+      setRates([]);
+      return;
+    }
+
+    setIsLoading(true);
+    console.log("📡 [Firebase RTDB] Setting up real-time listener for seller:", currentUser.id);
+    
+    const ratesRef = ref(database, `rates/${currentUser.id}`);
+    
+    const unsubscribe = onValue(
+      ratesRef,
+      (snapshot) => {
+        setIsLoading(false);
+        const data = snapshot.val();
+        
+        if (!data) {
+          console.log("📊 [Firebase RTDB] No rates found");
+          // Also fetch from API as fallback
+          fetch(`/api/rates?sellerId=${encodeURIComponent(currentUser.id)}`)
+            .then(res => res.json())
+            .then(apiRates => {
+              console.log("📡 [API Fallback] Loaded rates from backend:", apiRates);
+              setRates(apiRates || []);
+            })
+            .catch(err => {
+              console.error("❌ [API Fallback] Error:", err);
+              setRates([]);
+            });
+          return;
+        }
+        
+        const ratesArray = Object.entries(data).map(([key, value]: [string, any]) => ({
+          id: value.id || key,
+          ...value
+        })) as Rate[];
+        
+        console.log("✅ [Firebase RTDB] Real-time update received:", ratesArray.length, "rates");
+        setRates(ratesArray);
+      },
+      (error) => {
+        setIsLoading(false);
+        console.error("❌ [Firebase RTDB] Error setting up listener:", error);
+        // Fallback to API
+        fetch(`/api/rates?sellerId=${encodeURIComponent(currentUser.id)}`)
+          .then(res => res.json())
+          .then(apiRates => setRates(apiRates || []))
+          .catch(() => setRates([]));
+      }
+    );
+
+    return () => {
+      console.log("🔌 [Firebase RTDB] Disconnecting listener");
+      unsubscribe();
+    };
+  }, [isJunkshop, currentUser?.id]);
 
   const updateMutation = useMutation({
     mutationFn: async (data: { id: string; price: string }) => {
+      // Update in Firebase RTDB
+      if (currentUser?.id) {
+        await update(ref(database, `rates/${currentUser.id}/${data.id}`), { price: data.price });
+        console.log("✅ [Firebase RTDB] Rate updated:", data.id);
+      }
+      // Also sync to backend
       return await apiRequest("PATCH", `/api/rates/${data.id}`, { price: data.price });
     },
     onSuccess: () => {
@@ -87,17 +141,14 @@ export default function RatesPage() {
     },
   });
 
-  // Create new rate (Junkshop)
+  // Create new rate (Junkshop) - Now handled by handleAddRate
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
       return await apiRequest("POST", "/api/rates", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rates"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/rates", currentUser?.id] });
       toast({ title: "Rate added", description: "New material added to your list" });
-      setIsAddOpen(false);
-      setNewRate({ material: "", category: "", price: "₱", icon: "📦", unit: "kg" });
     },
     onError: (error: any) => {
       toast({ title: "Failed to add rate", description: error.message, variant: "destructive" });
@@ -106,6 +157,12 @@ export default function RatesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      // Delete from Firebase RTDB
+      if (currentUser?.id) {
+        await remove(ref(database, `rates/${currentUser.id}/${id}`));
+        console.log("✅ [Firebase RTDB] Rate deleted:", id);
+      }
+      // Also sync to backend
       return await apiRequest("DELETE", `/api/rates/${id}`);
     },
     onSuccess: () => {
@@ -125,6 +182,7 @@ export default function RatesPage() {
 
   const handleSaveEdit = () => {
     if (!editingId || !editPrice.trim()) return;
+    console.log("📝 [Rates] Saving edit for rate:", editingId, editPrice);
     updateMutation.mutate({ id: editingId, price: editPrice });
   };
 
@@ -132,7 +190,7 @@ export default function RatesPage() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newRate, setNewRate] = useState({ material: "", category: "", price: "₱", icon: "📦", unit: "kg" });
 
-  const handleAddRate = () => {
+  const handleAddRate = async () => {
     const userStr = localStorage.getItem("user");
     const currentUser: User | null = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
     if (!currentUser) return toast({ title: "Not authenticated", variant: "destructive" });
@@ -146,7 +204,28 @@ export default function RatesPage() {
       return toast({ title: "Rate already exists", description: `${newRate.material} in ${newRate.category} category is already in your list`, variant: "destructive" });
     }
 
-    createMutation.mutate({ ...newRate, sellerId: currentUser.id });
+    const rateData = {
+      ...newRate,
+      sellerId: currentUser.id,
+      id: push(ref(database, "rates")).key || `rate_${Date.now()}`,
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      // Save to Firebase RTDB first
+      await set(ref(database, `rates/${currentUser.id}/${rateData.id}`), rateData);
+      console.log("✅ [Firebase RTDB] Rate created:", rateData.id);
+      
+      // Also sync to backend
+      await apiRequest("POST", "/api/rates", rateData);
+      
+      toast({ title: "Rate added", description: "New material added to your list" });
+      setIsAddOpen(false);
+      setNewRate({ material: "", category: "", price: "₱", icon: categoryEmojis[""] || "📦", unit: "kg" });
+    } catch (error: any) {
+      console.error("❌ Error adding rate:", error);
+      toast({ title: "Failed to add rate", description: error.message, variant: "destructive" });
+    }
   };
 
   const handleDeleteRate = (id: string) => {
@@ -155,6 +234,7 @@ export default function RatesPage() {
 
   const confirmDeleteRate = () => {
     if (deletingRateId) {
+      console.log("🗑️ [Rates] Deleting rate:", deletingRateId);
       deleteMutation.mutate(deletingRateId);
       setDeletingRateId(null);
     }
@@ -285,7 +365,13 @@ export default function RatesPage() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="category">Category</Label>
-                        <Select value={newRate.category} onValueChange={(v) => setNewRate({ ...newRate, category: v })}>
+                        <Select value={newRate.category} onValueChange={(v) => {
+                          setNewRate({ 
+                            ...newRate, 
+                            category: v,
+                            icon: categoryEmojis[v] || "📦"
+                          });
+                        }}>
                           <SelectTrigger>
                             <SelectValue placeholder="Select category" />
                           </SelectTrigger>
@@ -327,8 +413,8 @@ export default function RatesPage() {
                         </div>
                       </div>
                       <div className="flex gap-2 justify-end">
-                        <Button variant="outline" onClick={() => { setIsAddOpen(false); setNewRate({ material: "", category: "", price: "₱", icon: "📦", unit: "kg" }); }}>Cancel</Button>
-                        <Button onClick={handleAddRate} disabled={createMutation.isPending}>{createMutation.isPending ? 'Adding...' : 'Add Rate'}</Button>
+                        <Button variant="outline" onClick={() => { setIsAddOpen(false); setNewRate({ material: "", category: "", price: "₱", icon: categoryEmojis[""] || "📦", unit: "kg" }); }}>Cancel</Button>
+                        <Button onClick={() => handleAddRate()} disabled={createMutation.isPending}>{'Adding...' ? 'Adding...' : 'Add Rate'}</Button>
                       </div>
                     </div>
                   </DialogContent>

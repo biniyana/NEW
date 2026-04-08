@@ -19,6 +19,7 @@ interface JunkshopsMapProps {
   junkshops: User[];
   onJunkshopClick?: (junkshop: User) => void;
   radiusKm?: number;
+  showAll?: boolean;
 }
 
 export default function JunkshopsMap({
@@ -26,6 +27,7 @@ export default function JunkshopsMap({
   junkshops,
   onJunkshopClick,
   radiusKm = 5,
+  showAll = false,
 }: JunkshopsMapProps) {
   const [centerLat, setCenterLat] = useState<number>(16.4023); // Baguio City default
   const [centerLng, setCenterLng] = useState<number>(120.5960);
@@ -40,6 +42,9 @@ export default function JunkshopsMap({
   // Filter junkshops within radius
   const nearbyJunkshops = junkshops.filter((junkshop) => {
     if (!junkshop.latitude || !junkshop.longitude) return false;
+
+    // If showAll is true, return all valid junkshops without radius filtering
+    if (showAll) return true;
 
     const lat2 = Number(junkshop.latitude);
     const lng2 = Number(junkshop.longitude);
@@ -84,31 +89,38 @@ export default function JunkshopsMap({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <MapPin className="w-5 h-5" />
-          Nearby Junkshops ({nearbyJunkshops.length})
+          {showAll ? "All Junkshops" : "Nearby Junkshops"} ({nearbyJunkshops.length})
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="rounded-lg overflow-hidden border border-border h-96">
-          <MapContainer {...({ center:[centerLat, centerLng], zoom:13, style:{ height: "100%", width: "100%" } } as any)}>
-            <TileLayer {...({ url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' } as any)} />
+          <MapContainer center={[centerLat, centerLng]} zoom={13} style={{ height: "100%", width: "100%" }}>
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            />
 
             {/* Your location */}
             {userLocation && (
               <>
-                <Marker {...({ position:[centerLat, centerLng], icon: userMarkerIcon } as any)}>
+                <Marker position={[centerLat, centerLng]} icon={userMarkerIcon}>
                   <Popup>
                     <div className="text-sm font-semibold">Your Location</div>
                   </Popup>
                 </Marker>
                 {/* Radius circle */}
-                <Circle {...({ center:[centerLat, centerLng], radius: radiusKm * 1000, fillOpacity:0.1 } as any)} />
+                <Circle center={[centerLat, centerLng]} radius={radiusKm * 1000} fillOpacity={0.1} />
               </>
             )}
 
             {/* Junkshops */}
             {nearbyJunkshops.map((junkshop) => (
-              <Marker {...({ key: junkshop.id, position: [Number(junkshop.latitude), Number(junkshop.longitude)], icon: junkshopMarkerIcon, eventHandlers: { click: () => { if (onJunkshopClick) onJunkshopClick(junkshop); } } } as any)}>
-
+              <Marker
+                key={junkshop.id}
+                position={[Number(junkshop.latitude), Number(junkshop.longitude)]}
+                icon={junkshopMarkerIcon}
+                eventHandlers={{ click: () => { if (onJunkshopClick) onJunkshopClick(junkshop); } }}
+              >
                 <Popup>
                   <div className="text-sm">
                     <p className="font-semibold">{junkshop.name}</p>
@@ -146,7 +158,7 @@ export default function JunkshopsMap({
           })}
           {nearbyJunkshops.length === 0 && (
             <div className="col-span-full text-center text-muted-foreground py-4">
-              No junkshops found within {radiusKm}km radius
+              {showAll ? "No junkshops available" : `No junkshops found within ${radiusKm}km radius`}
             </div>
           )}
         </div>

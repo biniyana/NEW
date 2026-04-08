@@ -12,9 +12,13 @@ import { Request as RequestType, User } from "@shared/schema";
 import { Plus, Calendar, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ref, onValue, set, update, push } from "firebase/database";
+import { database } from "@/firebase/firebase";
 
 export default function RequestsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [requests, setRequests] = useState<RequestType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   const userStr = localStorage.getItem("user");
@@ -28,18 +32,50 @@ export default function RequestsPage() {
     userType: currentUser?.userType,
   });
 
-  const { data: requests = [], isLoading } = useQuery<RequestType[]>({
-    queryKey: ["/api/requests"],
-    queryFn: async () => {
-      console.log("🔍 [Frontend] Fetching requests from /api/requests...");
-      const response = await fetch("/api/requests");
-      console.log("📡 [Frontend] Response status:", response.status);
-      const data = await response.json();
-      console.log("✅ [Frontend] Received requests:", data);
-      console.log("📊 [Frontend] Requests count:", Array.isArray(data) ? data.length : "not an array");
-      return data || [];
-    },
-  });
+  // Real-time listener for requests from Firebase
+  React.useEffect(() => {
+    setIsLoading(true);
+    const requestsRef = ref(database, "requests");
+    
+    const unsubscribe = onValue(
+      requestsRef,
+      (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          const requestsList: RequestType[] = Object.values(data).map((req: any) => ({
+            id: req.id,
+            type: req.type,
+            items: req.items,
+            address: req.address,
+            date: req.date,
+            time: req.time,
+            requesterId: req.requesterId,
+            requesterName: req.requesterName,
+            responderId: req.responderId,
+            responderName: req.responderName,
+            status: req.status || "Pending",
+            createdAt: req.createdAt ? new Date(req.createdAt) : null,
+          }));
+          console.log("✅ [Frontend] Received requests from Firebase:", requestsList);
+          setRequests(requestsList);
+        } else {
+          setRequests([]);
+        }
+        setIsLoading(false);
+      },
+      (error) => {
+        console.error("Error fetching requests from Firebase:", error);
+        setIsLoading(false);
+        toast({
+          title: "Error",
+          description: "Failed to load collection requests",
+          variant: "destructive",
+        });
+      }
+    );
+
+    return () => unsubscribe();
+  }, [toast]);
 
   // Show only the household's own requests to household users (hide seed/dummy requests)
   const visibleRequests = isHousehold ? requests.filter(r => {
@@ -111,62 +147,40 @@ export default function RequestsPage() {
 function RequestCard({ request, isHousehold }: { request: RequestType; isHousehold: boolean }) {
   const { toast } = useToast();
   const [requesterItems, setRequesterItems] = useState<any[]>([]);
+  const [isUpdating, setIsUpdating] = useState(false);
   
   const statusColors: Record<string, "secondary" | "default" | "outline" | "destructive"> = {
     Pending: "secondary",
     Accepted: "default",
     Completed: "outline",
     Cancelled: "destructive",
+    Declined: "destructive",
   };
 
-  const cancelMutation = useMutation({
-    mutationFn: async () => {
-      return await apiRequest("PATCH", `/api/requests/${request.id}`, { status: "Cancelled", actorId: (JSON.parse(localStorage.getItem('user')||'null')||{}).id });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requests"] });
-      toast({
-        title: "Request cancelled",
-        description: "Your request has been cancelled",
+  const updateRequestStatus = async (newStatus: string) => {
+    if (!request.id) return;
+    
+    setIsUpdating(true);
+    try {
+      const requestRef = ref(database, `requests/${request.id}`);
+      await update(requestRef, {
+        status: newStatus,
+        updatedAt: new Date().toISOString(),
       });
-    },
-    onError: (error: any) => {
       toast({
-        title: "Failed to cancel request",
+        title: `Request ${newStatus}`,
+        description: `The request has been ${newStatus.toLowerCase()}`,
+      });
+    } catch (error: any) {
+      console.error("Error updating request status:", error);
+      toast({
+        title: "Failed to update request",
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
-
-  const acceptMutation = useMutation({
-    mutationFn: async () => {
-      return await apiRequest("PATCH", `/api/requests/${request.id}`, { status: "Accepted", actorId: (JSON.parse(localStorage.getItem('user')||'null')||{}).id });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requests"] });
-      toast({
-        title: "Request accepted",
-        description: "You've accepted this collection request",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Failed to accept request",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleAction = () => {
-    if (isHousehold) {
-      // Households cannot change request status after submission per system rules
-      toast({ title: "Action not allowed", description: "Households cannot modify requests after submission", variant: "destructive" });
-      return;
+    } finally {
+      setIsUpdating(false);
     }
-    // Junkshop: accept
-    acceptMutation.mutate();
   };
 
   React.useEffect(() => {
@@ -174,7 +188,9 @@ function RequestCard({ request, isHousehold }: { request: RequestType; isHouseho
       try {
         const items = await fetch(`/api/items?sellerId=${encodeURIComponent(request.requesterId)}`).then(r => r.json()).catch(() => []);
         setRequesterItems(items || []);
-      } catch (e) {}
+      } catch (e) {
+        console.error("Error fetching items:", e);
+      }
     })();
   }, [request.requesterId]);
 
@@ -227,18 +243,18 @@ function RequestCard({ request, isHousehold }: { request: RequestType; isHouseho
       <CardFooter className="flex gap-2">
         {!isHousehold && request.status === "Pending" && (
           <>
-            <Button variant="outline" className="flex-1" onClick={() => acceptMutation.mutate()} disabled={acceptMutation.isPending}>
-              {acceptMutation.isPending ? "Accepting..." : "Accept"}
+            <Button variant="outline" className="flex-1" onClick={() => updateRequestStatus("Accepted")} disabled={isUpdating}>
+              {isUpdating ? "Accepting..." : "Accept"}
             </Button>
-            <Button variant="destructive" className="flex-1" onClick={() => apiRequest("PATCH", `/api/requests/${request.id}`, { status: "Declined", actorId: (JSON.parse(localStorage.getItem('user')||'null')||{}).id }).then(() => queryClient.invalidateQueries({ queryKey: ["/api/requests"] }))}>
+            <Button variant="destructive" className="flex-1" onClick={() => updateRequestStatus("Declined")} disabled={isUpdating}>
               Decline
             </Button>
           </>
         )}
 
         {!isHousehold && request.status === "Accepted" && (
-          <Button className="w-full" onClick={() => apiRequest("PATCH", `/api/requests/${request.id}`, { status: "Completed", actorId: (JSON.parse(localStorage.getItem('user')||'null')||{}).id }).then(() => queryClient.invalidateQueries({ queryKey: ["/api/requests"] }))}>
-            Mark Completed
+          <Button className="w-full" onClick={() => updateRequestStatus("Completed")} disabled={isUpdating}>
+            {isUpdating ? "Marking..." : "Mark Completed"}
           </Button>
         )}
       </CardFooter>
@@ -254,6 +270,7 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
   const [availableItems, setAvailableItems] = useState<Array<any>>([]);
   const [junkshops, setJunkshops] = useState<User[]>([]);
   const [selectedJunkshop, setSelectedJunkshop] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     type: "Collection",
@@ -283,29 +300,9 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
     })();
   }, []);
 
-  const createRequestMutation = useMutation({
-    mutationFn: async (data: any) => {
-      return await apiRequest("POST", "/api/requests", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/requests"] });
-      toast({
-        title: "Request created!",
-        description: "Your collection request has been submitted",
-      });
-      onClose();
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Failed to create request",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!currentUser) {
       toast({ title: "Not signed in", description: "Please log in to create a request", variant: "destructive" });
       window.location.href = "/login";
@@ -324,14 +321,40 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
       return;
     }
 
-    createRequestMutation.mutate({
-      ...formData,
-      requesterId: currentUser.id,
-      requesterName: currentUser.name,
-      responderId: selectedJunkshop,
-      responderName: (junkshops.find(j => j.id === selectedJunkshop) as any)?.name || null,
-      status: "Pending",
-    });
+    setIsSubmitting(true);
+    try {
+      const requestId = `req_${Date.now()}`;
+      const requestRef = ref(database, `requests/${requestId}`);
+      
+      const requestData = {
+        id: requestId,
+        ...formData,
+        requesterId: currentUser.id,
+        requesterName: currentUser.name,
+        responderId: selectedJunkshop,
+        responderName: junkshops.find(j => j.id === selectedJunkshop)?.name || null,
+        status: "Pending",
+        createdAt: new Date().toISOString(),
+      };
+
+      await set(requestRef, requestData);
+      
+      console.log("✅ Request saved to Firebase:", requestId);
+      toast({
+        title: "Request created!",
+        description: "Your collection request has been submitted",
+      });
+      onClose();
+    } catch (error: any) {
+      console.error("Error creating request:", error);
+      toast({
+        title: "Failed to create request",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -414,10 +437,10 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
           <Button
             type="submit"
             className="flex-1"
-            disabled={createRequestMutation.isPending}
+            disabled={isSubmitting}
             data-testid="button-submit-request"
           >
-            {createRequestMutation.isPending ? "Creating..." : "Create Request"}
+            {isSubmitting ? "Creating..." : "Create Request"}
           </Button>
         </div>
       </form>

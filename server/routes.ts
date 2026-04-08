@@ -364,6 +364,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(userWithRole);
   });
 
+  // Sync user profile to backend storage (from Firebase)
+  // Called when a user completes their profile after signup
+  app.post('/api/auth/profile', async (req, res) => {
+    try {
+      const { id, name, email, phone, address, userType, latitude, longitude } = req.body;
+      
+      console.log('📝 [/api/auth/profile] Syncing user profile:', { id, name, email, userType, latitude, longitude });
+      
+      if (!id) {
+        return res.status(400).json({ message: 'User ID is required' });
+      }
+
+      const userData = {
+        id,
+        name,
+        email,
+        phone,
+        address,
+        userType: userType || 'household',
+        latitude: latitude ?? null,
+        longitude: longitude ?? null,
+        password: 'firebase-auth', // Placeholder since auth is handled by Firebase
+        profileComplete: true,
+      };
+
+      const user = await storage.createOrUpdateUser(id, userData);
+      const { password, ...userWithoutPassword } = user;
+      
+      console.log('✅ [/api/auth/profile] User profile synced successfully:', userWithoutPassword);
+      res.status(200).json({ user: userWithoutPassword });
+    } catch (error: any) {
+      console.error('❌ [/api/auth/profile] Error:', error);
+      res.status(400).json({ message: error.message || 'Failed to sync profile' });
+    }
+  });
+
+  // Debug endpoint: GET all registered junkshops (for troubleshooting)
+  app.get("/api/debug/junkshops", async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      const junkshops = users.filter((u: any) => u.userType === "junkshop");
+      console.log('🔍 [/api/debug/junkshops] Total users:', users.length, 'Junkshops:', junkshops.length);
+      res.json({ 
+        totalUsers: users.length,
+        junkshops: junkshops.map(({ password, ...rest }: any) => rest)
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch debug data" });
+    }
+  });
+
   // Update user (patch)
   app.patch("/api/users/:id", async (req, res) => {
     try {

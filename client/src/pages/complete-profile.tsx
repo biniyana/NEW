@@ -97,10 +97,56 @@ export default function CompleteProfile() {
         updatedAt: new Date().toISOString(),
       };
 
+      // Save to Firebase Realtime Database
       await set(userRef, userData);
+
+      // Sync to backend storage so junkshops appear in /api/users endpoint
+      // IMPORTANT: Wait for this to complete before continuing
+      // This ensures junkshop users can be searched by household users
+      const email = auth.currentUser?.email || "";
+      let syncSuccess = false;
+      
+      try {
+        const profileData = {
+          id: uid,
+          email: email,
+          name: data.name,
+          phone: data.phone,
+          address: data.address,
+          userType: data.userType,
+          latitude: data.latitude ?? null,
+          longitude: data.longitude ?? null,
+        };
+        
+        console.log('📤 [complete-profile] Syncing profile to backend:', profileData);
+        
+        const response = await fetch("/api/auth/profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(profileData),
+        });
+
+        console.log('📊 [complete-profile] Sync response status:', response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Profile sync failed with status:', response.status, 'Response:', errorText);
+        } else {
+          const result = await response.json();
+          console.log('✅ [complete-profile] Profile synced successfully:', result);
+          syncSuccess = true;
+        }
+      } catch (err) {
+        console.error("❌ [complete-profile] Sync error:", err);
+      }
+      
+      // Log final sync status
+      console.log(`[complete-profile] Sync ${syncSuccess ? '✅ SUCCESS' : '⚠️ FAILED - proceeding anyway'}`);
+      
       return userData;
     },
     onSuccess: (data: any) => {
+      console.log('🎉 [complete-profile] Profile mutation success. User saved:', data);
       localStorage.setItem("user", JSON.stringify({
         uid: data.uid,
         displayName: data.name,
@@ -118,6 +164,7 @@ export default function CompleteProfile() {
       setLocation("/dashboard");
     },
     onError: (error: any) => {
+      console.error('❌ [complete-profile] Profile mutation error:', error);
       toast({
         title: "Save failed",
         description: error.message || "Could not save your profile.",
@@ -215,11 +262,11 @@ export default function CompleteProfile() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
+              <Label htmlFor="name">Name</Label>
               <Input
                 id="name"
                 type="text"
-                placeholder="Enter your name"
+                placeholder="Enter your name / junkshop name"
                 value={formData.name}
                 onChange={(e) => handleInputChange("name", e.target.value)}
                 required

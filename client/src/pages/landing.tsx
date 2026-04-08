@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Recycle, Home, Store, MessageCircle } from "lucide-react";
+import { Home, Store, MessageCircle } from "lucide-react"; // Removed Recycle import
 
 export default function Landing() {
   return (
@@ -11,11 +11,12 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-chart-2 flex items-center justify-center">
-                <Recycle className="w-6 h-6 text-primary-foreground" />
+              {/* Logo replaced with custom image */}
+              <div className="flex items-center justify-center">
+  <img src="/waiz logo.png" alt="Waiz Logo" className="w-10 h-10 object-contain" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-foreground">Waiz</h1>
+                <h1 className="text-xl font-bold text-foreground">WAIZ</h1>
                 <p className="text-xs text-muted-foreground">Eco Marketplace for Baguio</p>
               </div>
             </div>

@@ -203,6 +203,27 @@ export class FirebaseStorage implements IStorage {
     return created;
   }
 
+  async createOrUpdateUser(id: string, data: Partial<any>): Promise<any> {
+    const existingUser = await this.getUser(id);
+    
+    const userData: any = {
+      ...data,
+      id,
+    };
+
+    if (!existingUser) {
+      userData.createdAt = admin.firestore.FieldValue.serverTimestamp();
+    }
+
+    // Always use merge: true to avoid overwriting existing data
+    await db.collection("users").doc(id).set(userData, { merge: true });
+
+    const result = await this.getUser(id);
+    if (!result) throw new Error("Failed to fetch created/updated user");
+
+    return result;
+  }
+
   /* =========================
      ITEMS
   ========================= */
@@ -365,5 +386,56 @@ export class FirebaseStorage implements IStorage {
     const doc = await db.collection("rates").doc(id).get();
 
     return normalizeFirestoreDocument<Rate>(doc);
+  }
+
+  async getRates(sellerId?: string): Promise<Rate[]> {
+    try {
+      let query = db.collection("rates");
+      
+      if (sellerId) {
+        query = query.where("sellerId", "==", sellerId);
+      }
+      
+      const snapshot = await query.get();
+      
+      if (snapshot.empty) return [];
+      
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...normalizeFirestoreValue(doc.data())
+      })) as Rate[];
+    } catch (error) {
+      console.error("Error fetching rates:", error);
+      return [];
+    }
+  }
+
+  async updateRate(id: string, updates: Partial<Rate>): Promise<Rate | undefined> {
+    try {
+      const updateData: any = { ...updates };
+      
+      // Remove id from update data if present
+      delete updateData.id;
+      
+      // Add updatedAt timestamp
+      updateData.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+      
+      await db.collection("rates").doc(id).update(updateData);
+      
+      return this.getRate(id);
+    } catch (error) {
+      console.error("Error updating rate:", error);
+      return undefined;
+    }
+  }
+
+  async deleteRate(id: string): Promise<boolean> {
+    try {
+      await db.collection("rates").doc(id).delete();
+      return true;
+    } catch (error) {
+      console.error("Error deleting rate:", error);
+      return false;
+    }
   }
 }

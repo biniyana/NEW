@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Recycle, Home, Package, FileText, MessageCircle, DollarSign, User, LogOut } from "lucide-react";
 import { User as UserType, Message } from "@shared/schema";
 import MarketplacePage from "@/pages/marketplace";
@@ -23,6 +24,7 @@ export default function Dashboard() {
   const [location, setLocation] = useLocation();
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
   const [activeTab, setActiveTab] = useState("home");
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const { data: messages = [] } = useQuery<Message[]>({
     queryKey: ["/api/messages"],
@@ -112,7 +114,12 @@ export default function Dashboard() {
       console.warn('Logout request failed:', err);
     }
     localStorage.removeItem("user");
+    setShowLogoutConfirm(false);
     setLocation("/");
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(true);
   };
 
   if (!currentUser) {
@@ -140,7 +147,7 @@ export default function Dashboard() {
               <Badge variant="secondary" data-testid="badge-usertype">
                 {isHousehold ? "🏠 Household" : "🏪 Junkshop"}
               </Badge>
-              <Button variant="ghost" size="sm" onClick={handleLogout} data-testid="button-logout">
+              <Button variant="ghost" size="sm" onClick={confirmLogout} data-testid="button-logout">
                 <LogOut className="w-4 h-4 mr-2" />
                 Logout
               </Button>
@@ -232,6 +239,26 @@ export default function Dashboard() {
         {/* Jarvish Chatbot Bubble */}
         <ChatbotBubble currentUser={currentUser} activeTab={activeTab} />
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <Dialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Logout</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to logout? You'll need to log back in to access your account.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 justify-end mt-6">
+            <Button variant="outline" onClick={() => setShowLogoutConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleLogout}>
+              Logout
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -291,6 +318,7 @@ function DashboardHome({ currentUser }: { currentUser: UserType }) {
                 <JunkshopsMap
                   junkshops={junkshops}
                   userLocation={currentUser && currentUser.latitude ? { latitude: Number(currentUser.latitude), longitude: Number(currentUser.longitude) } : undefined}
+                  showAll={isHousehold}
                 />
               </div>
             )}

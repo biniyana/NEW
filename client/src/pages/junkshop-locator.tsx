@@ -287,29 +287,40 @@ export default function JunkshopLocator() {
             </CardHeader>
             <CardContent>
               <div className="rounded-lg overflow-hidden border border-border">
-                <MapContainer {...({ center:[ userLocation?.latitude || 16.4023, userLocation?.longitude || 120.5960 ] as [number, number], zoom:13, style:{ height: "500px", width: "100%" } } as any)}>
-                  <TileLayer {...({ url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' } as any)} />
+                <MapContainer
+                  center={[userLocation?.latitude || 16.4023, userLocation?.longitude || 120.5960] as [number, number]}
+                  zoom={13}
+                  style={{ height: "500px", width: "100%" }}
+                >
+                  <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  />
 
                   {/* User Location */}
                   {userLocation && (
                     <>
-                      <Marker {...({ position: [userLocation.latitude, userLocation.longitude] as [number, number], icon: userMarkerIcon } as any)}>
+                      <Marker position={[userLocation.latitude, userLocation.longitude] as [number, number]} icon={userMarkerIcon}>
                         <Popup>
                           <div className="text-sm font-semibold">Your Location</div>
                         </Popup>
                       </Marker>
-                      <Circle {...({ center: [userLocation.latitude, userLocation.longitude] as [number, number], radius: 5000, fillOpacity: 0.1 } as any)} />
+                      <Circle center={[userLocation.latitude, userLocation.longitude] as [number, number]} radius={5000} fillOpacity={0.1} />
                     </>
                   )}
 
                   {/* Junkshops */}
                   {filteredLocations.map((location) => (
-                      <Marker {...({ key:location.id, position:[location.latitude, location.longitude] as [number, number], icon: junkshopMarkerIcon, eventHandlers: { click: () => setSelectedJunkshop(location) } } as any)}>
+                    <Marker
+                      key={location.id}
+                      position={[location.latitude, location.longitude] as [number, number]}
+                      icon={junkshopMarkerIcon}
+                      eventHandlers={{ click: () => setSelectedJunkshop(location) }}
+                    >
                       <Popup>
                         <div className="text-sm">
                           <p className="font-semibold">{location.name}</p>
                           <p className="text-xs text-muted-foreground">{location.address}</p>
-
                           <p className="text-xs mt-1">📞 {location.phone}</p>
                         </div>
                       </Popup>

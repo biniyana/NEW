@@ -272,7 +272,7 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
+              <Label htmlFor="name">Name</Label>
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-muted-foreground" />
                 {isEditing ? (
@@ -419,6 +419,34 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Junkshop Rates Section */}
+      {!isHousehold && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <span className="text-2xl">💰</span>
+                Your Material Rates
+              </CardTitle>
+              <a href="/rates" className="text-primary text-sm font-medium hover:underline">
+                Manage Rates →
+              </a>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              View and manage your recyclable material prices. <a href="/rates" className="text-primary font-medium">Go to Rates page</a> to add or edit materials.
+            </p>
+            <div className="text-center py-8">
+              <p className="text-muted-foreground mb-4">No rates displayed in profile view</p>
+              <a href="/rates" className="inline-block px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition">
+                View All Rates →
+              </a>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
