@@ -12,7 +12,13 @@ export class UserController {
   static loadFromLocalStorage(): User | null {
     const userStr = localStorage.getItem('user');
     if (userStr && userStr !== 'undefined') {
-      return JSON.parse(userStr);
+      const raw: any = JSON.parse(userStr);
+      // Normalise legacy field names: old sessions stored 'uid'/'displayName'
+      return {
+        ...raw,
+        id: raw.id || raw.uid,
+        name: raw.name || raw.displayName || raw.email || 'User',
+      } as User;
     }
     return null;
   }

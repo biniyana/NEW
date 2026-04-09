@@ -148,8 +148,10 @@ export default function CompleteProfile() {
     onSuccess: (data: any) => {
       console.log('🎉 [complete-profile] Profile mutation success. User saved:', data);
       localStorage.setItem("user", JSON.stringify({
+        id: data.uid,
         uid: data.uid,
-        displayName: data.name,
+        name: data.name,
+        email: auth.currentUser?.email || "",
         phone: data.phone,
         address: data.address,
         userType: data.userType,

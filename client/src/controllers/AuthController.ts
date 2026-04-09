@@ -34,18 +34,22 @@ export class AuthController {
   /**
    * Login user with email and password
    */
-  static async login(email: string, password: string): Promise<{ uid: string; email: string | null; profileComplete: boolean; userType: string }> {
+  static async login(email: string, password: string): Promise<{ id: string; uid: string; email: string | null; name: string; phone: string; address: string; profileComplete: boolean; userType: string }> {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const uid = userCredential.user.uid;
 
-    // Fetch user profile from Firebase to check if complete
+    // Fetch user profile from Firebase Realtime Database
     const userRef = ref(database, `users/${uid}`);
     const snapshot = await get(userRef);
     const userProfile = snapshot.val();
 
     return {
+      id: uid,
       uid,
       email: userCredential.user.email,
+      name: userProfile?.name ?? userProfile?.displayName ?? '',
+      phone: userProfile?.phone ?? '',
+      address: userProfile?.address ?? '',
       profileComplete: userProfile?.profileComplete ?? false,
       userType: userProfile?.userType ?? 'household',
     };

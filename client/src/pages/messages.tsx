@@ -14,7 +14,15 @@ import { database } from "@/firebase/firebase";
 
 export default function MessagesPage() {
   const userStr = localStorage.getItem("user");
-  const currentUser: User | null = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
+  const rawUser: any = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
+  // Normalise field names: old sessions used 'uid'/'displayName', new sessions use 'id'/'name'
+  const currentUser: User | null = rawUser
+    ? {
+        ...rawUser,
+        id: rawUser.id || rawUser.uid,
+        name: rawUser.name || rawUser.displayName || rawUser.email || "User",
+      }
+    : null;
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [selectedUserName, setSelectedUserName] = useState<string>("");
   const [messageText, setMessageText] = useState("");

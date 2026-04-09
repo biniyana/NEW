@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { User, Rate } from "@/models";
 import { Edit2, Loader2, Trash2, Plus, MessageCircle } from "lucide-react";
@@ -31,7 +31,10 @@ const categoryEmojis: Record<string, string> = {
 export default function RatesPage() {
   const [, navigate] = useLocation();
   const userStr = localStorage.getItem("user");
-  const currentUser: User | null = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
+  const rawUser: any = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
+  const currentUser: User | null = rawUser
+    ? { ...rawUser, id: rawUser.id || rawUser.uid, name: rawUser.name || rawUser.displayName || "User" }
+    : null;
   const isJunkshop = currentUser?.userType === "junkshop";
   
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -39,17 +42,64 @@ export default function RatesPage() {
   const [deletingRateId, setDeletingRateId] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Household view: search and list junkshops
+  // Household view: search and list junkshops — read directly from Firebase RTDB
   const [query, setQuery] = useState("");
   const [selectedShop, setSelectedShop] = useState<any | null>(null);
-  const { data: junkshops = [], isLoading: isLoadingShops } = useQuery<any[]>({
-    queryKey: ["/api/junkshops", query],
-    queryFn: async () => {
-      const url = query ? `/api/junkshops?q=${encodeURIComponent(query)}` : "/api/junkshops";
-      return await fetch(url).then(res => res.json());
-    },
-    enabled: !isJunkshop,
-  });
+  const [junkshops, setJunkshops] = useState<any[]>([]);
+  const [isLoadingShops, setIsLoadingShops] = useState(false);
+
+  useEffect(() => {
+    if (isJunkshop) return;
+    setIsLoadingShops(true);
+
+    const usersRef = ref(database, "users");
+    const unsubscribe = onValue(
+      usersRef,
+      async (snapshot) => {
+        const data = snapshot.val();
+        if (!data) {
+          setJunkshops([]);
+          setIsLoadingShops(false);
+          return;
+        }
+
+        const allUsers: any[] = Object.values(data);
+        const shops = allUsers.filter(
+          (u: any) => u.userType === "junkshop" && u.profileComplete
+        );
+
+        // Attach rates for each shop from RTDB
+        const ratesSnap = await new Promise<any>((resolve) => {
+          const ratesRef = ref(database, "rates");
+          onValue(ratesRef, resolve, { onlyOnce: true });
+        });
+        const allRates = ratesSnap.val() || {};
+
+        const shopsWithRates = shops.map((shop: any) => {
+          const shopRatesObj = allRates[shop.uid] || {};
+          const shopRates = Object.values(shopRatesObj);
+          return {
+            id: shop.uid,
+            name: shop.name,
+            address: shop.address,
+            phone: shop.phone,
+            latitude: shop.latitude,
+            longitude: shop.longitude,
+            rates: shopRates,
+          };
+        });
+
+        setJunkshops(shopsWithRates);
+        setIsLoadingShops(false);
+      },
+      (error) => {
+        console.error("❌ [RTDB] Failed to load users:", error);
+        setIsLoadingShops(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [isJunkshop]);
 
   // Junkshop view: Real-time rates from Firebase RTDB
   const [rates, setRates] = useState<Rate[]>([]);
@@ -191,8 +241,6 @@ export default function RatesPage() {
   const [newRate, setNewRate] = useState({ material: "", category: "", price: "₱", icon: "📦", unit: "kg" });
 
   const handleAddRate = async () => {
-    const userStr = localStorage.getItem("user");
-    const currentUser: User | null = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
     if (!currentUser) return toast({ title: "Not authenticated", variant: "destructive" });
     if (!newRate.material.trim() || !newRate.price.trim() || !newRate.category.trim()) {
       return toast({ title: "Missing fields", description: "Please fill out material, category and price", variant: "destructive" });
@@ -216,8 +264,12 @@ export default function RatesPage() {
       await set(ref(database, `rates/${currentUser.id}/${rateData.id}`), rateData);
       console.log("✅ [Firebase RTDB] Rate created:", rateData.id);
       
-      // Also sync to backend
-      await apiRequest("POST", "/api/rates", rateData);
+      // Best-effort backend sync. Do not fail the UX if RTDB write already succeeded.
+      try {
+        await apiRequest("POST", "/api/rates", rateData);
+      } catch (syncError) {
+        console.warn("⚠️ [Rates] Backend sync failed, but RTDB save succeeded:", syncError);
+      }
       
       toast({ title: "Rate added", description: "New material added to your list" });
       setIsAddOpen(false);
@@ -259,7 +311,7 @@ export default function RatesPage() {
         <div className="space-y-4">
           <div className="flex gap-2">
             <Input placeholder="Search junkshops by name or address" value={query} onChange={(e) => setQuery(e.target.value)} data-testid="input-search-junkshops" />
-            <Button onClick={() => { /* triggers react-query refetch via query key */ }} data-testid="button-search-junkshops">Search</Button>
+            <Button onClick={() => setQuery(query.trim())} data-testid="button-search-junkshops">Search</Button>
           </div>
 
           {isLoadingShops ? (
@@ -268,13 +320,21 @@ export default function RatesPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {junkshops.length === 0 ? (
-                <Card>
-                  <CardContent className="p-6 text-center">No junkshops found</CardContent>
-                </Card>
-              ) : (
-                <>
-                  {junkshops.map((shop: any) => (
+              {(() => {
+                const filtered = query.trim()
+                  ? junkshops.filter((s: any) =>
+                      s.name?.toLowerCase().includes(query.toLowerCase()) ||
+                      s.address?.toLowerCase().includes(query.toLowerCase())
+                    )
+                  : junkshops;
+                if (filtered.length === 0) return (
+                  <Card>
+                    <CardContent className="p-6 text-center">No junkshops found</CardContent>
+                  </Card>
+                );
+                return (
+                  <>
+                    {filtered.map((shop: any) => (
                     <Card key={shop.id}>
                       <CardHeader className="flex justify-between items-start">
                         <div>
@@ -295,9 +355,9 @@ export default function RatesPage() {
                         </div>
                       </CardHeader>
                     </Card>
-                  ))}
+                    ))}
 
-                  <Dialog open={!!selectedShop} onOpenChange={(open) => !open && setSelectedShop(null)}>
+                    <Dialog open={!!selectedShop} onOpenChange={(open) => !open && setSelectedShop(null)}>
                     <DialogContent>
                       <DialogHeader>
                         <DialogTitle>{selectedShop?.name} — Rates</DialogTitle>
@@ -320,9 +380,10 @@ export default function RatesPage() {
                         )}
                       </CardContent>
                     </DialogContent>
-                  </Dialog>
-                </>
-              )}
+                    </Dialog>
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>

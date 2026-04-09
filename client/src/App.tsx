@@ -13,6 +13,7 @@ const Signup = lazy(() => import("@/pages/signup"));
 const Privacy = lazy(() => import("@/pages/privacy"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const MessagesPage = lazy(() => import("@/pages/messages"));
+const ProfilePage = lazy(() => import("@/pages/profile"));
 const AuthCallback = lazy(() => import("@/pages/auth-callback"));
 const CompleteProfile = lazy(() => import("@/pages/complete-profile"));
 const NotFound = lazy(() => import("@/pages/not-found"));
@@ -30,6 +31,7 @@ function Router() {
         <Route path="/complete-profile" component={CompleteProfile} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/messages" component={MessagesPage} />
+        <Route path="/profile" component={ProfilePage} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>

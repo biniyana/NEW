@@ -6,13 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Request as RequestType, User } from "@/models";
-import { Plus, Calendar, MapPin } from "lucide-react";
+import { Plus, Calendar, MapPin, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ref, onValue, set, update, push } from "firebase/database";
+import { ref, onValue, set, update, push, get } from "firebase/database";
 import { database } from "@/firebase/firebase";
 
 export default function RequestsPage() {
@@ -22,7 +20,10 @@ export default function RequestsPage() {
   const { toast } = useToast();
 
   const userStr = localStorage.getItem("user");
-  const currentUser: User | null = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
+  const rawUser: any = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
+  const currentUser: User | null = rawUser
+    ? { ...rawUser, id: rawUser.id || rawUser.uid, name: rawUser.name || rawUser.displayName || "User" }
+    : null;
   const isHousehold = currentUser?.userType === "household";
   
   console.log("👤 [Requests Page] Current user:", {
@@ -265,10 +266,13 @@ function RequestCard({ request, isHousehold }: { request: RequestType; isHouseho
 function NewRequestForm({ onClose }: { onClose: () => void }) {
   const { toast } = useToast();
   const userStr = localStorage.getItem("user");
-  const currentUser: User | null = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
+  const rawUser: any = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
+  const currentUser: User | null = rawUser
+    ? { ...rawUser, id: rawUser.id || rawUser.uid, name: rawUser.name || rawUser.displayName || "User" }
+    : null;
 
   const [availableItems, setAvailableItems] = useState<Array<any>>([]);
-  const [junkshops, setJunkshops] = useState<User[]>([]);
+  const [junkshops, setJunkshops] = useState<Array<any>>([]);
   const [selectedJunkshop, setSelectedJunkshop] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -284,8 +288,11 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
   React.useEffect(() => {
     (async () => {
       if (!currentUser) return;
+      const currentUserId = (currentUser as any).id || (currentUser as any).uid;
+      if (!currentUserId) return;
+
       try {
-        const items = await fetch(`/api/items?sellerId=${encodeURIComponent(currentUser.id)}`).then(r => r.json()).catch(() => []);
+        const items = await fetch(`/api/items?sellerId=${encodeURIComponent(currentUserId)}`).then(r => r.json()).catch(() => []);
         setAvailableItems(items || []);
         if ((!formData.items || formData.items.length === 0) && items && items.length > 0) {
           setFormData(f => ({ ...f, items: items.map((it: any) => it.title).join("; ") }));
@@ -294,8 +301,13 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
         // ignore
       }
       try {
-        const users = await fetch(`/api/users`).then(r => r.json()).catch(() => []);
-        setJunkshops((users || []).filter((u: any) => u.userType === "junkshop"));
+        const usersRef = ref(database, "users");
+        const usersSnap = await get(usersRef);
+        const usersData = usersSnap.val() || {};
+        const shops = Object.values(usersData)
+          .filter((u: any) => u.userType === "junkshop" && u.profileComplete)
+          .map((u: any) => ({ ...u, id: u.id || u.uid }));
+        setJunkshops(shops);
       } catch (e) {}
     })();
   }, []);
@@ -320,19 +332,29 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
       toast({ title: "Select junkshop", description: "Please choose a junkshop to address this request to", variant: "destructive" });
       return;
     }
+    if (!formData.items.trim() || !formData.address.trim() || !formData.date.trim()) {
+      toast({ title: "Missing fields", description: "Please complete items, address, and date", variant: "destructive" });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      const requestId = `req_${Date.now()}`;
+      const currentUserId = (currentUser as any).id || (currentUser as any).uid;
+      if (!currentUserId) {
+        toast({ title: "Missing user ID", description: "Please log in again", variant: "destructive" });
+        return;
+      }
+
+      const requestId = push(ref(database, "requests")).key || `req_${Date.now()}`;
       const requestRef = ref(database, `requests/${requestId}`);
       
       const requestData = {
         id: requestId,
         ...formData,
-        requesterId: currentUser.id,
+        requesterId: currentUserId,
         requesterName: currentUser.name,
         responderId: selectedJunkshop,
-        responderName: junkshops.find(j => j.id === selectedJunkshop)?.name || null,
+        responderName: junkshops.find(j => (j.id || j.uid) === selectedJunkshop)?.name || null,
         status: "Pending",
         createdAt: new Date().toISOString(),
       };
@@ -376,10 +398,34 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
           />
           {availableItems.length > 0 && (
             <div className="mt-2 text-sm text-muted-foreground">
-              Your posted items:
-              <ul className="list-disc pl-5">
-                {availableItems.map(it => <li key={it.id}>{it.title}</li>)}
-              </ul>
+              <p className="mb-2">Your posted items:</p>
+              <div className="grid grid-cols-2 gap-2">
+                {availableItems.map((it: any) => {
+                  let firstImage: string | null = null;
+                  try {
+                    const imgs = typeof it.imageUrls === "string" ? JSON.parse(it.imageUrls || "[]") : (it.imageUrls || []);
+                    firstImage = Array.isArray(imgs) && imgs.length > 0 ? imgs[0] : (it.imageUrl || null);
+                  } catch {
+                    firstImage = it.imageUrl || null;
+                  }
+
+                  return (
+                    <div key={it.id} className="flex items-center gap-2 rounded border p-2 bg-muted/30">
+                      {firstImage ? (
+                        <img src={firstImage} alt={it.title} className="h-12 w-12 rounded object-cover" />
+                      ) : (
+                        <div className="h-12 w-12 rounded border border-dashed border-muted-foreground/40 flex items-center justify-center bg-background">
+                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="truncate text-foreground text-xs font-medium">{it.title}</p>
+                        <p className="text-[11px]">{firstImage ? "Image attached" : "Image placeholder"}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -398,12 +444,15 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
 
         <div className="space-y-2">
           <Label htmlFor="junkshop">Choose Junkshop</Label>
-          <select id="junkshop" value={selectedJunkshop || ""} onChange={(e) => setSelectedJunkshop(e.target.value)} className="w-full border rounded p-2">
+          <select id="junkshop" value={selectedJunkshop || ""} onChange={(e) => setSelectedJunkshop(e.target.value)} className="w-full border rounded p-2" required>
             <option value="">Select a junkshop</option>
             {junkshops.map(js => (
-              <option key={js.id} value={js.id}>{js.name} — {js.address}</option>
+              <option key={js.id || js.uid} value={js.id || js.uid}>{js.name} — {js.address}</option>
             ))}
           </select>
+          {junkshops.length === 0 && (
+            <p className="text-sm text-muted-foreground">No junkshops found yet. Ask a junkshop to complete their profile first.</p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
