@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,8 +6,6 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Message, User } from "@shared/schema";
 import { Send, MessageCircle, Search, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -76,16 +74,21 @@ export default function MessagesPage() {
 
   useEffect(() => {
     try {
-      const q = (location || "").split("?")[1] || "";
-      const params = new URLSearchParams(q);
+      const params = new URLSearchParams(window.location.search);
       const userId = params.get("userId");
+      const userName = params.get("userName");
+
       if (userId) {
         setSelectedUser(userId);
+      }
+
+      if (userName) {
+        setSelectedUserName(userName);
       }
     } catch (e) {
       // ignore
     }
-  }, [location, messages]);
+  }, [location]);
 
   useEffect(() => {
     if (!currentUser || !selectedUser) return;
@@ -143,6 +146,11 @@ export default function MessagesPage() {
     };
   });
 
+  const selectedConversation = useMemo(
+    () => conversations.find((conversation) => conversation.userId === selectedUser),
+    [conversations, selectedUser]
+  );
+
   // Filter conversations based on search term
   const filteredConversations = conversations.filter((conv) =>
     conv.userName.toLowerCase().includes(searchTerm.toLowerCase())
@@ -169,9 +177,8 @@ export default function MessagesPage() {
       return;
     }
 
-    const existingConversation = conversations.find((c) => c.userId === selectedUser);
-    if (existingConversation) {
-      setSelectedUserName(existingConversation.userName);
+    if (selectedConversation) {
+      setSelectedUserName(selectedConversation.userName);
       return;
     }
 
@@ -190,7 +197,7 @@ export default function MessagesPage() {
     };
 
     fetchUserName();
-  }, [selectedUser, conversations]);
+  }, [selectedUser, selectedConversation]);
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -201,13 +208,12 @@ export default function MessagesPage() {
       const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const messageRef = ref(database, `messages/${messageId}`);
 
-      const receiver = conversations.find((c) => c.userId === selectedUser);
       const messageData = {
         id: messageId,
         senderId: currentUser.id,
         senderName: currentUser.name,
         receiverId: selectedUser,
-        receiverName: receiver?.userName || selectedUserName || "Unknown",
+        receiverName: selectedConversation?.userName || selectedUserName || "Unknown",
         content: messageText,
         read: false,
         timestamp: new Date().toISOString(),
@@ -313,7 +319,7 @@ export default function MessagesPage() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between gap-2">
                   <CardTitle>
-                    {selectedUserName || conversations.find((c) => c.userId === selectedUser)?.userName || "Conversation"}
+                    {selectedUserName || selectedConversation?.userName || "Conversation"}
                   </CardTitle>
                   <Button 
                     variant="ghost" 
@@ -347,31 +353,45 @@ export default function MessagesPage() {
               </CardHeader>
               <CardContent className="p-0">
                 <ScrollArea className="h-[440px] p-4">
-                  <div className="space-y-4">
-                    {selectedMessages.map((message) => {
-                      const isOwn = message.senderId === currentUser?.id;
-                      return (
-                        <div
-                          key={message.id}
-                          className={`flex ${isOwn ? "justify-end" : "justify-start"}`}
-                          data-testid={`message-${message.id}`}
-                        >
+                  {selectedMessages.length === 0 ? (
+                    <div className="flex h-full min-h-[360px] items-center justify-center text-center">
+                      <div>
+                        <MessageCircle className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                        <p className="text-base font-medium text-foreground">
+                          Start a conversation with {selectedUserName || "this user"}
+                        </p>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Your first message will be saved to Firebase and this thread will appear in your conversations list.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {selectedMessages.map((message) => {
+                        const isOwn = message.senderId === currentUser?.id;
+                        return (
                           <div
-                            className={`max-w-[80%] rounded-lg p-3 ${
-                              isOwn
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted text-foreground"
-                            }`}
+                            key={message.id}
+                            className={`flex ${isOwn ? "justify-end" : "justify-start"}`}
+                            data-testid={`message-${message.id}`}
                           >
-                            <p className="text-sm">{message.content}</p>
-                            <p className={`text-xs mt-1 ${isOwn ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                              {message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString()}
-                            </p>
+                            <div
+                              className={`max-w-[80%] rounded-lg p-3 ${
+                                isOwn
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-muted text-foreground"
+                              }`}
+                            >
+                              <p className="text-sm">{message.content}</p>
+                              <p className={`text-xs mt-1 ${isOwn ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                                {message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString()}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </ScrollArea>
                 <div className="border-t border-border p-4">
                   <form onSubmit={sendMessage} className="flex gap-2">

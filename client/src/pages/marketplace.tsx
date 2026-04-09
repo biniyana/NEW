@@ -318,7 +318,7 @@ export function ItemCard({ item, currentUser, authUid, onDeleteItem, onEditItem,
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate(`/messages?userId=${item.sellerId}`)}
+              onClick={() => navigate(`/messages?userId=${item.sellerId}&userName=${encodeURIComponent(item.sellerName)}`)}
             >
               <MessageCircle className="w-4 h-4 mr-2" />
               Contact

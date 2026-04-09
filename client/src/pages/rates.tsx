@@ -287,7 +287,7 @@ export default function RatesPage() {
                           </Button>
                           <Button 
                             variant="outline"
-                            onClick={() => navigate(`/dashboard?tab=messages&userId=${shop.id}`)}
+                            onClick={() => navigate(`/messages?userId=${shop.id}&userName=${encodeURIComponent(shop.name)}`)}
                           >
                             <MessageCircle className="w-4 h-4 mr-2" />
                             Contact
@@ -414,7 +414,7 @@ export default function RatesPage() {
                       </div>
                       <div className="flex gap-2 justify-end">
                         <Button variant="outline" onClick={() => { setIsAddOpen(false); setNewRate({ material: "", category: "", price: "₱", icon: categoryEmojis[""] || "📦", unit: "kg" }); }}>Cancel</Button>
-                        <Button onClick={() => handleAddRate()} disabled={createMutation.isPending}>{'Adding...' ? 'Adding...' : 'Add Rate'}</Button>
+                        <Button onClick={() => handleAddRate()} disabled={createMutation.isPending}>{createMutation.isPending ? 'Adding...' : 'Add Rate'}</Button>
                       </div>
                     </div>
                   </DialogContent>
@@ -467,22 +467,22 @@ export default function RatesPage() {
                                 <div className="space-y-2">
                                   <Label htmlFor="price">Price</Label>
                                   <Input
-  id="price"
-  placeholder="₱ Price"
-  value={newRate.price}
-  onChange={(e) => {
-    let value = e.target.value.replace(/[^\d]/g, "");
+                                    id="price"
+                                    placeholder="₱ Price"
+                                    value={newRate.price}
+                                    onChange={(e) => {
+                                      let value = e.target.value.replace(/[^\d]/g, "");
 
-    if (value === "") {
-      setNewRate({ ...newRate, price: "" });
-      return;
-    }
+                                      if (value === "") {
+                                        setNewRate({ ...newRate, price: "" });
+                                        return;
+                                      }
 
-    setNewRate({
-      ...newRate,
-      price: `₱${value}`,
-    });
-  }}
+                                      setNewRate({
+                                        ...newRate,
+                                        price: `₱${value}`,
+                                      });
+                                    }}
                                   />
                                 </div>
                                 <div className="flex gap-2 justify-end">
