@@ -188,7 +188,7 @@ export default function RecyclingMap() {
         {/* Map Container - Takes 2 columns on large screens */}
         <div className="lg:col-span-2 flex flex-col min-h-[500px]">
           <div className="relative rounded-xl border border-border overflow-hidden shadow-xl flex-1 bg-muted">
-            <MapContainer {...({ key:`map-${mapLayer}`, center:[16.4023, 120.5960], zoom:14, style:{ height: "100%", width: "100%" }, className:"z-0" } as any)}>
+            <MapContainer {...({ key:`map-${mapLayer}`, center:[16.4023, 120.5960], zoom:14, style:{ height: "100%", width: "100%" }, className:"relative z-10" } as any)}>
               {/* Street Map */}
               {mapLayer === "street" && (
                 <TileLayer {...({ url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: '&copy; OpenStreetMap contributors' } as any)} />

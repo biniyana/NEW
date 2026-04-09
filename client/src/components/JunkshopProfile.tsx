@@ -152,7 +152,7 @@ export default function JunkshopProfile({ junkshop, onCall, onEmail }: JunkshopP
                   height="300px"
                 />
               ) : (
-                <MapContainer {...({ center:[lat, lng] as [number, number], zoom:15, style:{ height: "300px", width: "100%" } } as any)}>
+                <MapContainer {...({ center:[lat, lng] as [number, number], zoom:15, style:{ height: "300px", width: "100%" }, className:"relative z-10" } as any)}>
                   <TileLayer {...({ url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' } as any)} />
                   <Marker {...({ position:[lat, lng] as [number, number], icon: junkshopMarkerIcon } as any)}>
                     <Popup>

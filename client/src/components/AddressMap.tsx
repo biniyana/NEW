@@ -124,7 +124,7 @@ export default function AddressMap({
           )}
 
           <div className="rounded-lg overflow-hidden border border-border h-96">
-            <MapContainer {...({ center:[mapLat, mapLng], zoom:14, style:{ height: "100%", width: "100%" } } as any)}>
+            <MapContainer {...({ center:[mapLat, mapLng], zoom:14, style:{ height: "100%", width: "100%" }, className:"relative z-10" } as any)}>
                 <TileLayer {...({ url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' } as any)} />
               <Marker position={[mapLat, mapLng]}>
                 <Popup>

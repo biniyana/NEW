@@ -306,11 +306,11 @@ export default function ProfilePage() {
                   <DialogTrigger asChild>
                     <Button variant="outline" size="sm">Set Shop Location</Button>
                   </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
+                  <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+                    <DialogHeader className="flex-shrink-0">
                       <DialogTitle>Set Shop Location</DialogTitle>
                     </DialogHeader>
-                    <div className="mt-4">
+                    <div className="flex-1 overflow-y-auto min-h-0">
                       <MapPinner
                         initialLatitude={currentUser.latitude ? Number(currentUser.latitude) : undefined}
                         initialLongitude={currentUser.longitude ? Number(currentUser.longitude) : undefined}
@@ -321,10 +321,10 @@ export default function ProfilePage() {
                           if (addr) setCurrentUser({ ...currentUser, address: addr });
                         }}
                       />
-                      <div className="flex gap-2 mt-4">
-                        <Button onClick={handleSaveLocation} className="flex-1">Save Location</Button>
-                        <Button variant="outline" onClick={() => setIsLocationOpen(false)} className="flex-1">Close</Button>
-                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-4 flex-shrink-0 border-t pt-4">
+                      <Button onClick={handleSaveLocation} className="flex-1">Save Location</Button>
+                      <Button variant="outline" onClick={() => setIsLocationOpen(false)} className="flex-1">Close</Button>
                     </div>
                   </DialogContent>
                 </Dialog>
@@ -335,53 +335,28 @@ export default function ProfilePage() {
       </div>
 
       {/* Statistics */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card>
-          <CardContent className="p-6 text-center">
-            <p className="text-3xl font-bold text-primary mb-2">{itemsListed}</p>
-            <p className="text-sm text-muted-foreground">Items Listed</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6 text-center">
-            <p className="text-3xl font-bold text-primary mb-2">
-              {new Date(currentUser.createdAt || new Date()).toLocaleDateString("en-US", {
-                month: "short",
-                year: "numeric",
-              })}
-            </p>
-            <p className="text-sm text-muted-foreground">Member Since</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Junkshop Rates Section */}
-      {!isHousehold && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <span className="text-2xl">💰</span>
-                Your Material Rates
-              </CardTitle>
-              <a href="/rates" className="text-primary text-sm font-medium hover:underline">
-                Manage Rates →
-              </a>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              View and manage your recyclable material prices. <a href="/rates" className="text-primary font-medium">Go to Rates page</a> to add or edit materials.
-            </p>
-            <div className="text-center py-8">
-              <p className="text-muted-foreground mb-4">No rates displayed in profile view</p>
-              <a href="/rates" className="inline-block px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition">
-                View All Rates →
-              </a>
-            </div>
-          </CardContent>
-        </Card>
+      {isHousehold && (
+        <div className="grid md:grid-cols-2 gap-6">
+          <Card>
+            <CardContent className="p-6 text-center">
+              <p className="text-3xl font-bold text-primary mb-2">{itemsListed}</p>
+              <p className="text-sm text-muted-foreground">Items Listed</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6 text-center">
+              <p className="text-3xl font-bold text-primary mb-2">
+                {new Date(currentUser.createdAt || new Date()).toLocaleDateString("en-US", {
+                  month: "short",
+                  year: "numeric",
+                })}
+              </p>
+              <p className="text-sm text-muted-foreground">Member Since</p>
+            </CardContent>
+          </Card>
+        </div>
       )}
+
     </div>
   );
 }

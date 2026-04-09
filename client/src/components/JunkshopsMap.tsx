@@ -94,7 +94,7 @@ export default function JunkshopsMap({
       </CardHeader>
       <CardContent>
         <div className="rounded-lg overflow-hidden border border-border h-96">
-          <MapContainer center={[centerLat, centerLng]} zoom={13} style={{ height: "100%", width: "100%" }}>
+          <MapContainer center={[centerLat, centerLng]} zoom={13} style={{ height: "100%", width: "100%" }} className="relative z-10">
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

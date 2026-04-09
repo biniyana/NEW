@@ -299,21 +299,28 @@ function DashboardHome({ currentUser }: { currentUser: UserType }) {
 
 
 
-      {/* Dashboard Map */}
+      {/* Dashboard Map - Display Junkshops */}
       <Card>
         <CardHeader>
-          <CardTitle>Map</CardTitle>
+          <CardTitle>
+            {isHousehold ? "🏪 Nearby Junkshops" : "📍 Shop Network"}
+          </CardTitle>
+          <p className="text-sm text-muted-foreground mt-2">
+            {isHousehold ? `Found ${junkshops.length} junkshops in your area` : `View all registered junkshops (${junkshops.length} total)`}
+          </p>
         </CardHeader>
-        <CardContent>
-          <Suspense fallback={<div>Loading map...</div>}>
+        <CardContent className="p-0">
+          <Suspense fallback={<div className="p-6">Loading map...</div>}>
             { (import.meta.env as any).VITE_GOOGLE_MAPS_API_KEY ? (
-              <GoogleMapView
-                markers={junkshops.filter(j => j.latitude && j.longitude).map((j: any) => ({ id: j.id, name: j.name, address: j.address, latitude: Number(j.latitude), longitude: Number(j.longitude) })) }
-                center={ junkshops && junkshops.length > 0 && junkshops[0].latitude ? { lat: Number(junkshops[0].latitude), lng: Number(junkshops[0].longitude) } : undefined }
-                height="300px"
-              />
+              <div className="h-96 rounded-b-lg overflow-hidden">
+                <GoogleMapView
+                  markers={junkshops.filter(j => j.latitude && j.longitude).map((j: any) => ({ id: j.id, name: j.name, address: j.address, latitude: Number(j.latitude), longitude: Number(j.longitude) })) }
+                  center={ junkshops && junkshops.length > 0 && junkshops[0].latitude ? { lat: Number(junkshops[0].latitude), lng: Number(junkshops[0].longitude) } : undefined }
+                  height="400px"
+                />
+              </div>
             ) : (
-              <div>
+              <div className="rounded-b-lg overflow-hidden">
                 <JunkshopsMap
                   junkshops={junkshops}
                   userLocation={currentUser && currentUser.latitude ? { latitude: Number(currentUser.latitude), longitude: Number(currentUser.longitude) } : undefined}

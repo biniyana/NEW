@@ -208,7 +208,14 @@ export default function MarketplacePage({ onNavigateToMessages }: MarketplacePag
       ) : (
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {items.map((item) => (
+          {items
+            .sort((a, b) => {
+              // User's posts first, then others
+              const aIsOwner = authUid && a.sellerId === authUid ? 0 : 1;
+              const bIsOwner = authUid && b.sellerId === authUid ? 0 : 1;
+              return aIsOwner - bIsOwner;
+            })
+            .map((item) => (
             <ItemCard
               key={item.id}
               item={item}
@@ -267,11 +274,14 @@ export function ItemCard({ item, currentUser, authUid, onDeleteItem, onEditItem,
   const isJunkshop = currentUser?.userType === "junkshop";
 
   return (
-    <Card>
+    <Card className={isOwner ? "border-2 border-primary/50 bg-primary/5" : ""}>
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle>{item.title}</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle>{item.title}</CardTitle>
+              {isOwner && <Badge className="bg-green-500 hover:bg-green-600">✓ My Post</Badge>}
+            </div>
             <Badge>{item.category}</Badge>
           </div>
           {isOwner && onDeleteItem && onEditItem && (
@@ -298,13 +308,11 @@ export function ItemCard({ item, currentUser, authUid, onDeleteItem, onEditItem,
       </CardHeader>
 
       <CardContent>
-        <p className="text-xl font-bold">{item.price}</p>
-
         {item.imageUrl && (
           <img
             src={item.imageUrl}
             alt={item.title}
-            className="w-full h-40 object-cover rounded mt-2"
+            className="w-full h-40 object-cover rounded"
           />
         )}
       </CardContent>
@@ -432,10 +440,10 @@ function AddItemForm({ onClose }: AddItemFormProps) {
       return;
     }
 
-    if (!formData.title || !formData.category || !formData.price) {
+    if (!formData.title || !formData.category) {
       toast({
         title: "Missing fields",
-        description: "Please fill in title, category, and price",
+        description: "Please fill in title and category",
         variant: "destructive",
       });
       return;
@@ -486,30 +494,11 @@ function AddItemForm({ onClose }: AddItemFormProps) {
           <SelectContent>
             {categories.slice(1).map((cat) => (
               <SelectItem key={cat} value={cat}>
-                {categoryEmojis[cat]} {cat}
+                {cat}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-
-        <Input
-  placeholder="₱ Price"
-  value={formData.price}
-  onChange={(e) => {
-    let value = e.target.value.replace(/[^\d]/g, "");
-
-    if (value === "") {
-      setFormData({ ...formData, price: "" });
-      return;
-    }
-
-    setFormData({
-      ...formData,
-      price: `₱${value}`,
-    });
-  }}
-  required
-/>
 
         <Textarea
           placeholder="Description"
@@ -669,10 +658,10 @@ function EditItemForm({ item, onClose }: EditItemFormProps) {
       return;
     }
 
-    if (!formData.title || !formData.category || !formData.price) {
+    if (!formData.title || !formData.category) {
       toast({
         title: "Missing fields",
-        description: "Please fill in title, category, and price",
+        description: "Please fill in title and category",
         variant: "destructive",
       });
       return;
@@ -723,15 +712,6 @@ function EditItemForm({ item, onClose }: EditItemFormProps) {
             ))}
           </SelectContent>
         </Select>
-
-        <Input
-          placeholder="Price (e.g., ₱50/kg)"
-          value={formData.price}
-          onChange={(e) =>
-            setFormData({ ...formData, price: e.target.value })
-          }
-          required
-        />
 
         <Textarea
           placeholder="Description (optional)"

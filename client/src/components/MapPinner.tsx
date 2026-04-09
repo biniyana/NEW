@@ -170,9 +170,9 @@ export default function MapPinner({
           </AlertDescription>
         </Alert>
 
-        {/* Map */}
-        <div className="rounded-lg overflow-hidden border border-border">
-          <MapContainer {...({ center:[centerLat, centerLng] as [number, number], zoom:14, style:{ height: "400px", width: "100%" } } as any)}>
+        {/* Map - Responsive Height */}
+        <div className="rounded-lg overflow-hidden border border-border bg-gray-100">
+          <MapContainer {...({ center:[centerLat, centerLng] as [number, number], zoom:14, style:{ height: "clamp(300px, 50vh, 500px)", width: "100%" }, className:"relative z-10" } as any)}>
             <TileLayer {...({ url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' } as any)} />
             <LocationMarker position={markerPosition} setPosition={setMarkerPosition} />
           </MapContainer>
