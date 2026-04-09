@@ -7,22 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Recycle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/firebase/firebase";
-
-function getFirebaseAuthErrorMessage(error: any) {
-  if (!error) return "Could not create account.";
-  switch (error.code) {
-    case "auth/email-already-in-use":
-      return "This email is already registered.";
-    case "auth/invalid-email":
-      return "Enter a valid email address.";
-    case "auth/weak-password":
-      return "Password should be at least 6 characters.";
-    default:
-      return error.message || "Could not create account.";
-  }
-}
+import { AuthController } from "@/controllers";
+import { UserController } from "@/controllers";
 
 export default function Signup() {
   const [, setLocation] = useLocation();
@@ -35,17 +21,19 @@ export default function Signup() {
 
   const signupMutation = useMutation({
     mutationFn: async (data: any) => {
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-      return userCredential.user;
+      // Extract name and userType from data, if not provided, use defaults
+      const name = data.name || data.email.split("@")[0];
+      const userType = data.userType || "household";
+      return AuthController.signup(data.email, data.password, name, userType);
     },
     onSuccess: (user) => {
       // New account - profile is incomplete
-      localStorage.setItem("user", JSON.stringify({
+      const userData = {
         uid: user.uid,
         email: user.email,
-        displayName: user.displayName,
         profileComplete: false,
-      }));
+      };
+      UserController.saveToLocalStorage(userData as any);
       
       toast({
         title: "Account created!",
@@ -57,7 +45,7 @@ export default function Signup() {
     onError: (error: any) => {
       toast({
         title: "Signup failed",
-        description: getFirebaseAuthErrorMessage(error),
+        description: AuthController.getErrorMessage(error),
         variant: "destructive",
       });
     },

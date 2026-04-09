@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { TrendingUp, Plus, Edit2, Trash2, Clock, DollarSign, Weight, Package, Home, Settings, LogOut } from "lucide-react";
-import { User as UserType } from "@shared/schema";
+import { User as UserType } from "@/models";
 
 interface MaterialTransaction {
   id: string;

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Phone, Clock, Navigation, Search, Mail, X, Satellite } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { User } from "@shared/schema";
+import { User } from "@/models";
 
 interface Location {
   id: string;

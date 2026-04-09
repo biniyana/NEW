@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, Recycle, PickaxeIcon, Leaf, Zap, Package, MessageCircle, Settings, Menu, X } from "lucide-react";
-import { User as UserType } from "@shared/schema";
+import { User as UserType } from "@/models";
 
 interface CategoryCard {
   id: string;

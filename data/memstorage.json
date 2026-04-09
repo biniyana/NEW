@@ -1,31 +1,8 @@
 {
-  "users": [
-    {
-      "name": "marklee",
-      "email": "marklee@gmail.com",
-      "phone": "09234567823",
-      "address": "Gibraltar Road, Mines View Condominium, Gibraltar, District 1, Baguio, Cordillera Administrative Region, 2600, Philippines",
-      "password": "firebase-auth",
-      "userType": "junkshop",
-      "id": "mwcmMNkBKsX0XajTJNQQJOhziXh1",
-      "latitude": "16.418009",
-      "longitude": "120.6212518",
-      "createdAt": "2026-04-08T13:55:18.442Z"
-    }
-  ],
+  "users": [],
   "items": [],
   "requests": [],
   "messages": [],
   "chatbotConversations": {},
-  "rates": [
-    {
-      "material": "Plastic Cans",
-      "price": "₱55",
-      "unit": "kg",
-      "icon": "🍾",
-      "category": "Plastic",
-      "id": "06b423ff-0169-4692-be8c-ea8d7c927a48",
-      "createdAt": "2026-04-08T14:12:25.191Z"
-    }
-  ]
+  "rates": []
 }

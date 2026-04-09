@@ -7,14 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import MapPinner from "@/components/MapPinner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { User as UserType, Item } from "@shared/schema";
 import { MapPin, Mail, Phone, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { ref, onValue, update } from "firebase/database";
-import { database, auth } from "@/firebase/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { UserController, ItemController } from "@/controllers";
+import { User as UserType, Item } from "@/models";
 
 export default function ProfilePage() {
   type ProfileUser = UserType & { uid?: string; profileComplete?: boolean };
@@ -26,26 +24,16 @@ export default function ProfilePage() {
 
   // Load current user from localStorage and get auth UID
   useEffect(() => {
-    const userStr = localStorage.getItem("user");
-    if (userStr && userStr !== "undefined") {
-      const parsed = JSON.parse(userStr);
+    const user = UserController.loadFromLocalStorage();
+    if (user) {
       const normalizedUser = {
-        ...parsed,
-        id: parsed.id ?? null,
-        uid: parsed.uid ?? parsed.userId ?? null,
+        ...user,
+        id: (user as any).id ?? null,
+        uid: (user as any).uid ?? (user as any).userId ?? null,
       };
-      setCurrentUser(normalizedUser);
+      setCurrentUser(normalizedUser as ProfileUser);
+      setAuthUid((normalizedUser as any).uid);
     }
-
-    // Also get the UID from Firebase auth
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user?.uid) {
-        console.log("Auth UID:", user.uid);
-        setAuthUid(user.uid);
-      }
-    });
-
-    return unsubscribe;
   }, []);
 
   // Fetch items from Firebase for current user
@@ -55,52 +43,10 @@ export default function ProfilePage() {
       return;
     }
 
-    console.log("Fetching items for user:", authUid);
-    const itemsRef = ref(database, "items");
-
-    const unsubscribe = onValue(
-      itemsRef,
-      (snapshot) => {
-        const data = snapshot.val();
-        console.log("Items from Firebase:", data);
-        if (data) {
-          const itemsList: Item[] = Object.values(data)
-            .map((item: any) => ({
-              id: item.id,
-              title: item.title,
-              category: item.category,
-              price: item.price,
-              description: item.description || null,
-              imageUrl: item.imageUrl || null,
-              imageUrls: item.imageUrls || null,
-              sellerId: item.sellerId,
-              sellerName: item.sellerName,
-              emoji: item.emoji || null,
-              status: item.status || "available",
-              createdAt: item.createdAt ? new Date(item.createdAt) : null,
-            }))
-            // Filter only items by current user (compare with Firebase auth UID)
-            .filter((item) => {
-              const matches = item.sellerId === authUid;
-              console.log(`Checking item ${item.id}: sellerId=${item.sellerId}, authUid=${authUid}, matches=${matches}`);
-              return matches;
-            });
-
-          console.log("Filtered items for current user:", itemsList);
-          setItems(itemsList);
-        } else {
-          setItems([]);
-        }
-      },
-      (error) => {
-        console.error("Error fetching items from Firebase:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load your marketplace items",
-          variant: "destructive",
-        });
-      }
-    );
+    const unsubscribe = ItemController.onSellerItems(authUid, (fetchedItems) => {
+      console.log("Filtered items for current user:", fetchedItems);
+      setItems(fetchedItems);
+    });
 
     return () => unsubscribe();
   }, [authUid, toast]);
@@ -138,26 +84,19 @@ export default function ProfilePage() {
         });
         updatedUser = (await response.json()) as ProfileUser;
       } else {
-        const firebaseUpdates = {
+        await UserController.updateProfile(userId as string, {
           name: currentUser.name,
           email: currentUser.email,
           phone: currentUser.phone,
           address: currentUser.address,
-          latitude: currentUser.latitude ?? null,
-          longitude: currentUser.longitude ?? null,
-          updatedAt: new Date().toISOString(),
-        };
-        await update(ref(database, `users/${userId}`), firebaseUpdates);
-        updatedUser = {
-          ...currentUser,
-          ...firebaseUpdates,
-          uid: userId,
-          id: currentUser.id ?? undefined,
-        };
+          latitude: currentUser.latitude,
+          longitude: currentUser.longitude,
+        } as any);
+        updatedUser = currentUser;
       }
 
       setCurrentUser(updatedUser);
-      localStorage.setItem("user", JSON.stringify(updatedUser));
+      UserController.saveToLocalStorage(updatedUser as any);
       toast({
         title: "Profile updated",
         description: "Your changes have been saved",
@@ -189,16 +128,12 @@ export default function ProfilePage() {
         });
         await res.json();
       } else {
-        await update(ref(database, `users/${userId}`), {
-          latitude: tempLat,
-          longitude: tempLng,
-          updatedAt: new Date().toISOString(),
-        });
+        await UserController.updateLocation(userId as string, tempLat, tempLng);
       }
 
       const newUser = { ...currentUser, latitude: String(tempLat), longitude: String(tempLng) } as ProfileUser;
       setCurrentUser(newUser);
-      localStorage.setItem("user", JSON.stringify(newUser));
+      UserController.saveToLocalStorage(newUser as any);
       setIsLocationOpen(false);
       toast({ title: "Location saved", description: "Shop location updated" });
     } catch (err) {

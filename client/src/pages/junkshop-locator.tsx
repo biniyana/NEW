@@ -10,7 +10,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import GetDirectionsButton from "@/components/GetDirectionsButton";
 import { useQuery } from "@tanstack/react-query";
-import { User } from "@shared/schema";
+import { User } from "@/models";
 
 // Fix for leaflet markers
 delete (L.Icon.Default.prototype as any)._getIconUrl;

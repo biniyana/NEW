@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, Circle } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { User } from "@shared/schema";
+import { User } from "@/models";
 import { MapPin } from "lucide-react";
 
 // Fix for leaflet markers

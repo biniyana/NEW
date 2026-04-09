@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Loader2, X, MessageCircle, Trash2, ChevronDown } from "lucide-react";
-import { User as UserType, ChatbotConversation } from "@shared/schema";
+import { User as UserType, ChatbotConversation } from "@/models";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +29,7 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
     setIsOpen(false);
   }, [activeTab]);
   const [messageText, setMessageText] = useState("");
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 

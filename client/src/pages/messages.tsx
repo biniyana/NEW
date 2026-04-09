@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Message, User } from "@shared/schema";
+import { Message, User } from "@/models";
 import { Send, MessageCircle, Search, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ref, onValue, set, update } from "firebase/database";

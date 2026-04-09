@@ -7,27 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Recycle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { ref, get } from "firebase/database";
-import { auth, database } from "@/firebase/firebase";
-
-function getFirebaseAuthErrorMessage(error: any) {
-  if (!error) return "Invalid email or password.";
-  switch (error.code) {
-    case "auth/invalid-email":
-      return "Enter a valid email address.";
-    case "auth/user-not-found":
-      return "No account found with this email.";
-    case "auth/wrong-password":
-      return "Incorrect password.";
-    case "auth/operation-not-allowed":
-      return "Email/password login is disabled. Enable Email/Password sign-in in your Firebase console.";
-    case "auth/too-many-requests":
-      return "Too many login attempts. Please try again later.";
-    default:
-      return error.message || "Invalid email or password.";
-  }
-}
+import { AuthController } from "@/controllers";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -37,21 +17,7 @@ export default function Login() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: { email: string; password: string }) => {
-      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
-      const uid = userCredential.user.uid;
-
-      // Fetch user profile from Firebase to check if complete
-      const userRef = ref(database, `users/${uid}`);
-      const snapshot = await get(userRef);
-      const userProfile = snapshot.val();
-
-      return {
-        uid,
-        email: userCredential.user.email,
-        displayName: userCredential.user.displayName,
-        profileComplete: userProfile?.profileComplete ?? false,
-        ...userProfile,
-      };
+      return AuthController.login(data.email, data.password);
     },
     onSuccess: (userData: any) => {
       localStorage.setItem("user", JSON.stringify(userData));
@@ -72,7 +38,7 @@ export default function Login() {
     onError: (error: any) => {
       toast({
         title: "Login failed",
-        description: getFirebaseAuthErrorMessage(error),
+        description: AuthController.getErrorMessage(error),
         variant: "destructive",
       });
     },

@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Recycle, Home, Package, FileText, MessageCircle, DollarSign, User, LogOut } from "lucide-react";
-import { User as UserType, Message } from "@shared/schema";
+import { User as UserType, Message } from "@/models";
+import { UserController, AuthController, MessageController } from "@/controllers";
 import MarketplacePage from "@/pages/marketplace";
 import RequestsPage from "@/pages/requests";
 import MessagesPage from "@/pages/messages";
@@ -58,14 +59,13 @@ export default function Dashboard() {
   }, [location]);
 
   useEffect(() => {
-    const userStr = localStorage.getItem("user");
-    if (userStr && userStr !== "undefined") {
-      const user = JSON.parse(userStr);
+    const user = UserController.loadFromLocalStorage();
+    if (user) {
       // Ensure userType is set; default to household if missing
       if (!user.userType) user.userType = "household";
       
       // If profile is incomplete, redirect to complete-profile
-      if (!user.profileComplete) {
+      if (!(user as any).profileComplete) {
         console.log('User profile incomplete, redirecting to complete-profile');
         setLocation('/complete-profile');
         return;
@@ -78,18 +78,17 @@ export default function Dashboard() {
     // Try to fetch authenticated user from server session
     (async () => {
       try {
-        const res = await fetch('/api/auth/me', { credentials: 'include' });
-        if (res.ok) {
-          const user = await res.json();
+        const user = await UserController.fetchCurrentUser();
+        if (user) {
           // Ensure userType is set; default to household if missing
           if (!user.userType) {
-            console.warn("User from /api/auth/me missing userType; defaulting to household", user);
+            console.warn("User missing userType; defaulting to household", user);
             user.userType = "household";
           }
-          localStorage.setItem('user', JSON.stringify(user));
+          UserController.saveToLocalStorage(user);
           
           // If profile is incomplete, redirect to complete-profile
-          if (!user.profileComplete) {
+          if (!(user as any).profileComplete) {
             console.log('User profile incomplete, redirecting to complete-profile');
             setLocation('/complete-profile');
             return;
@@ -98,10 +97,10 @@ export default function Dashboard() {
           setCurrentUser(user);
           return;
         } else {
-          console.warn('/api/auth/me returned status:', res.status);
+          console.warn('Failed to fetch current user');
         }
       } catch (err) {
-        console.error('Failed to fetch auth.me:', err);
+        console.error('Failed to fetch authenticated user:', err);
       }
       setLocation('/login');
     })();
@@ -109,11 +108,11 @@ export default function Dashboard() {
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+      await AuthController.logout();
     } catch (err) {
       console.warn('Logout request failed:', err);
     }
-    localStorage.removeItem("user");
+    UserController.removeFromLocalStorage();
     setShowLogoutConfirm(false);
     setLocation("/");
   };

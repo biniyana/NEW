@@ -18,7 +18,7 @@ import {
 } from "recharts";
 import { TrendingUp, Users, Package, CheckCircle, Calendar } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { User } from "@shared/schema";
+import { User } from "@/models";
 
 interface TransactionAnalyticsProps {
   currentUser?: User;
