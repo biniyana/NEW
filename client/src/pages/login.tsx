@@ -1,3 +1,4 @@
+// src/pages/login.tsx
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -9,12 +10,18 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { AuthController } from "@/controllers";
 
+// Firebase imports for Google login
+import { signInWithPopup, sendEmailVerification } from "firebase/auth";
+import { auth, googleProvider, database } from "../firebase.Config";
+import { ref, get, set } from "firebase/database";
+
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  // Email/password login mutation
   const loginMutation = useMutation({
     mutationFn: async (data: { email: string; password: string }) => {
       return AuthController.login(data.email, data.password);
@@ -26,12 +33,9 @@ export default function Login() {
         description: "Welcome back to Waiz",
       });
 
-      // Check if profile is complete
       if (userData.profileComplete) {
-        console.log("Profile complete, redirecting to dashboard");
         setLocation("/dashboard");
       } else {
-        console.log("Profile incomplete, redirecting to complete-profile");
         setLocation("/complete-profile");
       }
     },
@@ -46,9 +50,74 @@ export default function Login() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const id = email.trim();
-    const pw = password.trim();
-    loginMutation.mutate({ email: id, password: pw });
+    loginMutation.mutate({ email: email.trim(), password: password.trim() });
+  };
+
+  // Google login function with first-time and returning user handling
+  const handleGoogleLogin = async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+
+      const userRef = ref(database, "users/" + user.uid);
+      const snapshot = await get(userRef);
+
+      if (!snapshot.exists()) {
+        // First-time login → save user in Realtime DB
+        await set(userRef, {
+          uid: user.uid,
+          name: user.displayName,
+          email: user.email,
+          photo: user.photoURL,
+          profileComplete: false,
+          createdAt: new Date().toISOString(),
+        });
+
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            uid: user.uid,
+            email: user.email,
+            name: user.displayName,
+            photo: user.photoURL,
+            profileComplete: false,
+          })
+        );
+
+        toast({
+          title: "Welcome!",
+          description: "Please complete your profile to continue.",
+        });
+
+        setLocation("/complete-profile");
+      } else {
+        // Returning user → check email verification
+        if (!user.emailVerified) {
+          await sendEmailVerification(user);
+          toast({
+            title: "Email Verification Sent",
+            description: "A verification link has been sent to your Google email. Please verify to continue.",
+          });
+          // Optional: redirect to a "check your email" page
+        } else {
+          // Verified → access dashboard
+          const userData = snapshot.val();
+          localStorage.setItem("user", JSON.stringify(userData));
+          toast({
+            title: "Login Successful!",
+            description: "Welcome back to Waiz",
+          });
+          setLocation("/dashboard");
+        }
+      }
+    } catch (error: any) {
+      toast({
+        title: "Google login failed",
+        description: error.message,
+        variant: "destructive",
+      });
+      console.error("Google login error:", error);
+    }
   };
 
   return (
@@ -105,7 +174,7 @@ export default function Login() {
                 type="button"
                 variant="outline"
                 className="w-full flex items-center justify-center gap-2"
-                onClick={() => (window.location.href = "/auth/google")}
+                onClick={handleGoogleLogin}
                 data-testid="button-google"
                 aria-label="Continue with Google"
               >
@@ -118,7 +187,7 @@ export default function Login() {
                 Continue with Google
               </Button>
             </div>
-          </form> 
+          </form>
 
           <div className="mt-6 text-center space-y-3">
             <p className="text-sm text-muted-foreground">

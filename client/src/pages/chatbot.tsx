@@ -215,7 +215,7 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
   return (
     <div className="fixed bottom-6 right-6 z-40 font-sans">
       {isOpen ? (
-        <div className="bg-card border border-border rounded-xl shadow-2xl w-96 flex flex-col h-[600px] overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
+        <div className="bg-card border border-border rounded-xl shadow-2xl w-96 flex flex-col h-[500px] overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
           {/* Header */}
           <div className="bg-gradient-to-r from-primary via-primary/80 to-chart-2 p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">

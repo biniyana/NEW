@@ -15,6 +15,8 @@ import MessagesPage from "@/pages/messages";
 import RatesPage from "@/pages/rates";
 import ProfilePage from "@/pages/profile";
 import { ChatbotBubble } from "@/pages/chatbot";
+import { ref, onValue } from "firebase/database";
+import { database } from "@/firebase/firebase";
 
 // Lazy load heavy components
 const GoogleMapView = lazy(() => import("@/components/GoogleMapView"));
@@ -27,7 +29,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("home");
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  const { data: messages = [] } = useQuery<Message[]>({
+  const { data: messages = [], refetch: refetchMessages } = useQuery<Message[]>({
     queryKey: ["/api/messages"],
     queryFn: async () => {
       const res = await fetch("/api/messages");
@@ -35,8 +37,31 @@ export default function Dashboard() {
       return res.json();
     },
     enabled: !!currentUser?.id,
-    staleTime: 1000 * 60,
+    staleTime: 1000 * 10, // Refresh every 10 seconds for more responsive updates
+    refetchInterval: 1000 * 15, // Refetch every 15 seconds for background updates
   });
+
+  // Real-time Firebase listener for immediate notification updates
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const messagesRef = ref(database, "messages");
+    
+    const unsubscribe = onValue(
+      messagesRef,
+      (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          refetchMessages();
+        }
+      },
+      (error) => {
+        console.error("Firebase listener error:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [currentUser?.id, refetchMessages]);
 
   const unreadMessagesCount = messages.reduce((count, msg) => {
     if (!currentUser) return count;
@@ -193,15 +218,17 @@ export default function Dashboard() {
               data-testid="button-nav-messages"
             >
               <div className="flex items-center justify-between w-full gap-3">
-                <span className="flex items-center gap-3">
+                <span className="flex items-center gap-3 relative">
                   <MessageCircle className="w-4 h-4" />
                   Messages
+                  {unreadMessagesCount > 0 && (
+                    <span 
+                      className="absolute -top-1 -right-2 w-3 h-3 bg-green-500 rounded-full animate-pulse"
+                      data-testid="notification-dot"
+                      title={`${unreadMessagesCount} unread message${unreadMessagesCount > 1 ? 's' : ''}`}
+                    />
+                  )}
                 </span>
-                {unreadMessagesCount > 0 && (
-                  <Badge variant="secondary" className="text-xs px-2 py-1">
-                    {unreadMessagesCount}
-                  </Badge>
-                )}
               </div>
             </Button>
             <Button

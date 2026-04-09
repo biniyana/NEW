@@ -18,6 +18,7 @@ import { uploadImageToCloudinary } from "@/utils/cloudinary";
 import { ref, set, update, remove, onValue, query, get } from "firebase/database";
 import { database, auth } from "@/firebase/firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import { getOrCreateConversation, fetchUserNameFromDB } from "@/lib/firebaseConversations";
 
 const categories = ["All", "Plastic", "Paper", "Metal", "Glass", "Cardboard", "Copper"];
 
@@ -270,8 +271,38 @@ interface ItemCardProps {
 }
 
 export function ItemCard({ item, currentUser, authUid, onDeleteItem, onEditItem, navigate }: ItemCardProps) {
+  const { toast } = useToast();
+  const [isHandlingContact, setIsHandlingContact] = useState(false);
   const isOwner = authUid && item.sellerId === authUid;
   const isJunkshop = currentUser?.userType === "junkshop";
+
+  const handleContact = async () => {
+    if (!currentUser?.id || !item.sellerId || !navigate) {
+      toast({
+        title: "Error",
+        description: "Unable to start conversation",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsHandlingContact(true);
+    try {
+      const conversationId = await getOrCreateConversation(currentUser.id, item.sellerId);
+      const sellerName = await fetchUserNameFromDB(item.sellerId);
+      console.log(`✅ Conversation ready: ${conversationId}`);
+      navigate(`/messages?conversationId=${conversationId}&userId=${item.sellerId}&userName=${encodeURIComponent(sellerName)}`);
+    } catch (error) {
+      console.error("Error creating conversation:", error);
+      toast({
+        title: "Error",
+        description: "Failed to start conversation. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsHandlingContact(false);
+    }
+  };
 
   return (
     <Card className={isOwner ? "border-2 border-primary/50 bg-primary/5" : ""}>
@@ -322,14 +353,16 @@ export function ItemCard({ item, currentUser, authUid, onDeleteItem, onEditItem,
           <p className="text-sm text-muted-foreground">
             Seller: {item.sellerName}
           </p>
-          {isJunkshop && !isOwner && navigate && (
+          {isJunkshop && !isOwner && currentUser?.id && (
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate(`/messages?userId=${item.sellerId}&userName=${encodeURIComponent(item.sellerName)}`)}
+              onClick={handleContact}
+              disabled={isHandlingContact}
+              data-testid="button-contact-seller"
             >
               <MessageCircle className="w-4 h-4 mr-2" />
-              Contact
+              {isHandlingContact ? "Starting..." : "Contact"}
             </Button>
           )}
         </div>

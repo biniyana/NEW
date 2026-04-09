@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,15 +7,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Message, User } from "@/models";
-import { Send, MessageCircle, Search, X } from "lucide-react";
+import { Send, MessageCircle, Search, X, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { ref, onValue, set, update } from "firebase/database";
+import { ref, onValue, set, update, get } from "firebase/database";
 import { database } from "@/firebase/firebase";
+import { getOtherParticipantName, sendConversationMessage, fetchUserNameFromDB } from "@/lib/firebaseConversations";
 
 export default function MessagesPage() {
   const userStr = localStorage.getItem("user");
   const rawUser: any = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
-  // Normalise field names: old sessions used 'uid'/'displayName', new sessions use 'id'/'name'
   const currentUser: User | null = rawUser
     ? {
         ...rawUser,
@@ -23,212 +23,253 @@ export default function MessagesPage() {
         name: rawUser.name || rawUser.displayName || rawUser.email || "User",
       }
     : null;
+
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [selectedUserName, setSelectedUserName] = useState<string>("");
   const [messageText, setMessageText] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [chatSearchTerm, setChatSearchTerm] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [allConversations, setAllConversations] = useState<any[]>([]);
+  const [conversationMessages, setConversationMessages] = useState<any[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const [isLoadingUserName, setIsLoadingUserName] = useState(false);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  // Real-time listener for messages from Firebase
+  const [location] = useLocation();
+
+  // Listen to all conversations
   useEffect(() => {
-    const messagesRef = ref(database, "messages");
-    
+    if (!currentUser?.id) return;
+
+    const conversationsRef = ref(database, "conversations");
+
     const unsubscribe = onValue(
-      messagesRef,
+      conversationsRef,
       (snapshot) => {
         const data = snapshot.val();
         if (data) {
-          const messagesList: Message[] = Object.values(data).map((msg: any) => ({
-            id: msg.id,
-            senderId: msg.senderId,
-            senderName: msg.senderName,
-            receiverId: msg.receiverId,
-            receiverName: msg.receiverName,
-            content: msg.content,
-            read: msg.read || false,
-            timestamp: msg.timestamp,
-          }));
-          console.log("✅ [Messages] Received messages from Firebase:", messagesList.length);
-          setMessages(messagesList);
+          const convList = Object.values(data)
+            .filter((conv: any) => 
+              conv.participants && conv.participants.includes(currentUser.id)
+            )
+            .sort((a: any, b: any) => {
+              const timeA = new Date(a.updatedAt).getTime();
+              const timeB = new Date(b.updatedAt).getTime();
+              return timeB - timeA;
+            });
+          setAllConversations(convList);
         } else {
-          setMessages([]);
+          setAllConversations([]);
         }
       },
       (error) => {
-        console.error("Error fetching messages from Firebase:", error);
+        console.error("Error fetching conversations:", error);
         toast({
           title: "Error",
-          description: "Failed to load messages",
+          description: "Failed to load conversations",
           variant: "destructive",
         });
       }
     );
 
     return () => unsubscribe();
-  }, [toast]);
+  }, [currentUser?.id, toast]);
 
-  const [location] = useLocation();
-
-  const unreadCountsByUser = messages.reduce((acc, msg) => {
-    if (!currentUser) return acc;
-    if (msg.receiverId === currentUser.id && String(msg.read) !== "true") {
-      acc[msg.senderId] = (acc[msg.senderId] || 0) + 1;
+  // Listen to messages in selected conversation
+  useEffect(() => {
+    if (!selectedConversationId) {
+      setConversationMessages([]);
+      return;
     }
-    return acc;
-  }, {} as Record<string, number>);
 
+    const messagesRef = ref(database, `conversations/${selectedConversationId}/messages`);
+
+    const unsubscribe = onValue(
+      messagesRef,
+      (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          const msgList = Object.values(data)
+            .sort((a: any, b: any) => {
+              const timeA = new Date(a.timestamp).getTime();
+              const timeB = new Date(b.timestamp).getTime();
+              return timeA - timeB;
+            });
+          setConversationMessages(msgList);
+
+          // Mark messages as read
+          if (currentUser?.id) {
+            markMessagesAsRead(selectedConversationId, currentUser.id);
+          }
+
+          // Auto-scroll to latest message
+          setTimeout(() => {
+            if (scrollAreaRef.current) {
+              const scrollElement = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+              if (scrollElement) {
+                scrollElement.scrollTop = scrollElement.scrollHeight;
+              }
+            }
+          }, 100);
+        } else {
+          setConversationMessages([]);
+        }
+      },
+      (error) => {
+        console.error("Error fetching messages:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [selectedConversationId, currentUser?.id]);
+
+  // Mark messages as read
+  const markMessagesAsRead = async (conversationId: string, userId: string) => {
+    try {
+      const unreadMessages = conversationMessages.filter(
+        (msg: any) => msg.receiverId === userId && !msg.read
+      );
+
+      for (const message of unreadMessages) {
+        const messageRef = ref(database, `conversations/${conversationId}/messages/${message.id}/read`);
+        await set(messageRef, true);
+      }
+    } catch (error) {
+      console.error("Error marking messages as read:", error);
+    }
+  };
+
+  // Handle URL parameters
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
+      const conversationId = params.get("conversationId");
       const userId = params.get("userId");
       const userName = params.get("userName");
 
-      if (userId) {
+      if (conversationId) {
+        setSelectedConversationId(conversationId);
+      } else if (userId) {
         setSelectedUser(userId);
       }
 
       if (userName) {
-        setSelectedUserName(userName);
+        setSelectedUserName(decodeURIComponent(userName));
       }
     } catch (e) {
-      // ignore
+      console.error("Error parsing URL params:", e);
     }
   }, [location]);
 
-  useEffect(() => {
-    if (!currentUser || !selectedUser) return;
+  // Build conversation list
+  const conversations = useMemo(() => {
+    return allConversations.map((conv: any) => {
+      const otherUserId = conv.participants?.find((id: string) => id !== currentUser?.id);
+      const otherUserName = conv.participantNames?.[otherUserId] || otherUserId || "Unknown";
+      const lastMessage = Object.values(conv.messages || {})
+        .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0] as any;
 
-    const unreadToMark = messages.filter(
-      (m) =>
-        m.senderId === selectedUser &&
-        m.receiverId === currentUser.id &&
-        String(m.read) !== "true"
-    );
+      return {
+        id: conv.id,
+        userId: otherUserId,
+        userName: otherUserName,
+        lastMessage: lastMessage?.content || "",
+        timestamp: lastMessage?.timestamp ? new Date(lastMessage.timestamp) : new Date(),
+        unreadCount: Object.values(conv.messages || {})
+          .filter((msg: any) => msg.receiverId === currentUser?.id && !msg.read).length,
+      };
+    });
+  }, [allConversations, currentUser?.id]);
 
-    if (unreadToMark.length === 0) return;
-
-    const markRead = async () => {
-      try {
-        // Mark messages as read in Firebase
-        for (const message of unreadToMark) {
-          const messageRef = ref(database, `messages/${message.id}`);
-          await update(messageRef, { read: true });
-        }
-      } catch (error) {
-        console.error("Failed to mark messages read", error);
-      }
-    };
-
-    markRead();
-  }, [currentUser, selectedUser, messages]);
-
-  // Get unique conversations
-  const conversations = Array.from(
-    new Set(
-      messages.map((m) =>
-        m.senderId === currentUser?.id ? m.receiverId : m.senderId
-      )
-    )
-  ).map((userId) => {
-    const lastMessage = messages
-      .filter(
-        (m) =>
-          (m.senderId === userId && m.receiverId === currentUser?.id) ||
-          (m.senderId === currentUser?.id && m.receiverId === userId)
-      )
-      .sort((a, b) => {
-        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-        return timeB - timeA;
-      })[0];
-    
-    return {
-      userId,
-      userName: lastMessage ? (lastMessage.senderId === currentUser?.id ? lastMessage.receiverName : lastMessage.senderName) : "Unknown",
-      lastMessage: lastMessage?.content || "",
-      timestamp: lastMessage?.timestamp ? new Date(lastMessage.timestamp) : new Date(),
-      unreadCount: unreadCountsByUser[userId] || 0,
-    };
-  });
-
-  const selectedConversation = useMemo(
-    () => conversations.find((conversation) => conversation.userId === selectedUser),
-    [conversations, selectedUser]
-  );
-
-  // Filter conversations based on search term
+  // Filter conversations
   const filteredConversations = conversations.filter((conv) =>
     conv.userName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const selectedMessages = messages
-    .filter(
-      (m) =>
-        (m.senderId === selectedUser && m.receiverId === currentUser?.id) ||
-        (m.senderId === currentUser?.id && m.receiverId === selectedUser)
-    )
-    .sort((a, b) => {
-      const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-      const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-      return timeA - timeB;
-    })
-    .filter((m) =>
-      chatSearchTerm ? m.content.toLowerCase().includes(chatSearchTerm.toLowerCase()) : true
-    );
+  // Get selected conversation
+  const selectedConversation = useMemo(
+    () => conversations.find((c) => c.id === selectedConversationId),
+    [conversations, selectedConversationId]
+  );
 
+  // Filter messages by search term
+  const filteredMessages = conversationMessages.filter((m) =>
+    chatSearchTerm ? m.content.toLowerCase().includes(chatSearchTerm.toLowerCase()) : true
+  );
+
+  // Fetch user name if not available
   useEffect(() => {
-    if (!selectedUser) {
-      setSelectedUserName("");
-      return;
-    }
-
-    if (selectedConversation) {
+    if (!selectedConversation && selectedUser && !selectedUserName) {
+      setIsLoadingUserName(true);
+      fetchUserNameFromDB(selectedUser)
+        .then((name) => setSelectedUserName(name || selectedUser))
+        .catch(() => setSelectedUserName(selectedUser))
+        .finally(() => setIsLoadingUserName(false));
+    } else if (selectedConversation) {
       setSelectedUserName(selectedConversation.userName);
-      return;
     }
-
-    const fetchUserName = async () => {
-      try {
-        const response = await fetch(`/api/users/${selectedUser}`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch user name");
-        }
-        const userData = await response.json();
-        setSelectedUserName(userData.name || "Unknown");
-      } catch (error) {
-        console.error("Failed to load chat partner name", error);
-        setSelectedUserName("Unknown");
-      }
-    };
-
-    fetchUserName();
-  }, [selectedUser, selectedConversation]);
+  }, [selectedConversation, selectedUser, selectedUserName]);
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageText.trim() || !selectedUser || !currentUser) return;
+    if (!messageText.trim() || !currentUser) return;
+
+    // If conversation not yet created, use legacy message system for now
+    if (!selectedConversationId && selectedUser) {
+      setIsSending(true);
+      try {
+        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const messageRef = ref(database, `messages/${messageId}`);
+
+        const messageData = {
+          id: messageId,
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          receiverId: selectedUser,
+          receiverName: selectedUserName || "User",
+          content: messageText,
+          read: false,
+          timestamp: new Date().toISOString(),
+        };
+
+        await set(messageRef, messageData);
+        console.log("✅ Message sent to Firebase:", messageId);
+        setMessageText("");
+      } catch (error: any) {
+        console.error("Error sending message:", error);
+        toast({
+          title: "Failed to send message",
+          description: error.message,
+          variant: "destructive",
+        });
+      } finally {
+        setIsSending(false);
+      }
+      return;
+    }
+
+    // Send through conversation
+    if (!selectedConversationId) {
+      toast({
+        title: "Error",
+        description: "Please select a conversation",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsSending(true);
     try {
-      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const messageRef = ref(database, `messages/${messageId}`);
-
-      const messageData = {
-        id: messageId,
-        senderId: currentUser.id,
-        senderName: currentUser.name,
-        receiverId: selectedUser,
-        receiverName: selectedConversation?.userName || selectedUserName || "Unknown",
-        content: messageText,
-        read: false,
-        timestamp: new Date().toISOString(),
-      };
-
-      await set(messageRef, messageData);
-      console.log("✅ Message sent to Firebase:", messageId);
+      await sendConversationMessage(
+        selectedConversationId,
+        currentUser.id,
+        currentUser.name,
+        selectedUser || selectedConversation?.userId || "",
+        selectedUserName || selectedConversation?.userName || "User",
+        messageText
+      );
       setMessageText("");
     } catch (error: any) {
       console.error("Error sending message:", error);
@@ -250,8 +291,8 @@ export default function MessagesPage() {
       </div>
 
       <div className="grid md:grid-cols-3 gap-6 h-[600px]">
-        {/* Conversations List - Always visible on desktop, hidden on mobile when chat is open */}
-        <Card className={`md:col-span-1 ${selectedUser ? 'hidden md:block' : ''}`}>
+        {/* Conversations List */}
+        <Card className={`md:col-span-1 ${selectedConversationId ? "hidden md:block" : ""}`}>
           <CardHeader className="pb-3">
             <CardTitle>Conversations</CardTitle>
             <div className="relative mt-4">
@@ -279,7 +320,8 @@ export default function MessagesPage() {
               {conversations.length === 0 ? (
                 <div className="p-8 text-center">
                   <MessageCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-sm text-muted-foreground">No messages yet</p>
+                  <p className="text-sm text-muted-foreground">No conversations yet</p>
+                  <p className="text-xs text-muted-foreground mt-2">Contact someone to start messaging</p>
                 </div>
               ) : filteredConversations.length === 0 ? (
                 <div className="p-8 text-center">
@@ -290,16 +332,20 @@ export default function MessagesPage() {
               ) : (
                 filteredConversations.map((conv) => (
                   <button
-                    key={conv.userId}
-                    onClick={() => setSelectedUser(conv.userId)}
-                    className={`w-full p-4 text-left hover-elevate border-b border-border ${
-                      selectedUser === conv.userId ? "bg-accent" : ""
+                    key={conv.id}
+                    onClick={() => {
+                      setSelectedConversationId(conv.id);
+                      setSelectedUser(conv.userId);
+                      setSelectedUserName(conv.userName);
+                    }}
+                    className={`w-full p-4 text-left hover-elevate border-b border-border transition-colors ${
+                      selectedConversationId === conv.id ? "bg-accent" : "hover:bg-accent/50"
                     }`}
-                    data-testid={`conversation-${conv.userId}`}
+                    data-testid={`conversation-${conv.id}`}
                   >
                     <div className="flex items-start gap-3">
                       <Avatar>
-                        <AvatarFallback>{conv.userName[0]}</AvatarFallback>
+                        <AvatarFallback>{conv.userName[0] || "?"}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -311,6 +357,9 @@ export default function MessagesPage() {
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground truncate">{conv.lastMessage}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(conv.timestamp).toLocaleDateString()}
+                        </p>
                       </div>
                     </div>
                   </button>
@@ -322,17 +371,35 @@ export default function MessagesPage() {
 
         {/* Chat Area */}
         <Card className="md:col-span-2">
-          {selectedUser ? (
+          {selectedConversationId || selectedUserName ? (
             <>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between gap-2">
-                  <CardTitle>
-                    {selectedUserName || selectedConversation?.userName || "Conversation"}
-                  </CardTitle>
-                  <Button 
-                    variant="ghost" 
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Avatar>
+                      <AvatarFallback>{selectedUserName?.[0] || "?"}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <CardTitle className="truncate">
+                        {isLoadingUserName ? (
+                          <span className="flex items-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Loading...
+                          </span>
+                        ) : (
+                          selectedUserName || "Conversation"
+                        )}
+                      </CardTitle>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
                     size="icon"
-                    onClick={() => setSelectedUser(null)}
+                    onClick={() => {
+                      setSelectedConversationId(null);
+                      setSelectedUser(null);
+                      setSelectedUserName("");
+                    }}
                     className="md:hidden"
                     data-testid="button-back-conversations"
                   >
@@ -360,8 +427,8 @@ export default function MessagesPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <ScrollArea className="h-[440px] p-4">
-                  {selectedMessages.length === 0 ? (
+                <ScrollArea ref={scrollAreaRef} className="h-[440px] p-4">
+                  {filteredMessages.length === 0 ? (
                     <div className="flex h-full min-h-[360px] items-center justify-center text-center">
                       <div>
                         <MessageCircle className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
@@ -369,13 +436,13 @@ export default function MessagesPage() {
                           Start a conversation with {selectedUserName || "this user"}
                         </p>
                         <p className="mt-2 text-sm text-muted-foreground">
-                          Your first message will be saved to Firebase and this thread will appear in your conversations list.
+                          Your first message will appear here and be saved to Firebase.
                         </p>
                       </div>
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {selectedMessages.map((message) => {
+                      {filteredMessages.map((message) => {
                         const isOwn = message.senderId === currentUser?.id;
                         return (
                           <div
@@ -391,8 +458,14 @@ export default function MessagesPage() {
                               }`}
                             >
                               <p className="text-sm">{message.content}</p>
-                              <p className={`text-xs mt-1 ${isOwn ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                                {message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString()}
+                              <p
+                                className={`text-xs mt-1 ${
+                                  isOwn ? "text-primary-foreground/80" : "text-muted-foreground"
+                                }`}
+                              >
+                                {message.timestamp
+                                  ? new Date(message.timestamp).toLocaleTimeString()
+                                  : new Date().toLocaleTimeString()}
                               </p>
                             </div>
                           </div>
@@ -408,13 +481,18 @@ export default function MessagesPage() {
                       value={messageText}
                       onChange={(e) => setMessageText(e.target.value)}
                       data-testid="input-message"
+                      disabled={isLoadingUserName || !selectedUserName}
                     />
                     <Button
                       type="submit"
-                      disabled={!messageText.trim() || isSending}
+                      disabled={!messageText.trim() || isSending || isLoadingUserName || !selectedUserName}
                       data-testid="button-send"
                     >
-                      <Send className="w-4 h-4" />
+                      {isSending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
                     </Button>
                   </form>
                 </div>
@@ -425,7 +503,7 @@ export default function MessagesPage() {
               <div className="text-center">
                 <MessageCircle className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
                 <p className="text-lg font-medium text-foreground">Select a conversation</p>
-                <p className="text-sm text-muted-foreground">Choose a conversation to start messaging</p>
+                <p className="text-sm text-muted-foreground">Choose a conversation to start messaging or contact someone from the marketplace</p>
               </div>
             </CardContent>
           )}
