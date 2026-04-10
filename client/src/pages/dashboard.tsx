@@ -292,22 +292,83 @@ export default function Dashboard() {
 function DashboardHome({ currentUser }: { currentUser: UserType }) {
   const isHousehold = currentUser.userType === "household";
 
-
-
   const [junkshops, setJunkshops] = useState<any[]>([]);
 
+  // Real-time Firebase listener for junkshop locations
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch('/api/junkshops');
-        if (res.ok) {
-          const data = await res.json();
-          setJunkshops(data);
+    // Listen to all users in Firebase Realtime Database
+    const usersRef = ref(database, "users");
+    
+    const unsubscribe = onValue(
+      usersRef,
+      (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          // Extract all junkshops with valid locations
+          const junkshopsList = Object.entries(data)
+            .map(([, user]: [string, any]) => {
+              // Ensure we have required fields
+              if (!user.userType || user.userType !== "junkshop") return null;
+              
+              // Only include if they have both latitude and longitude
+              const lat = user.latitude ? Number(user.latitude) : null;
+              const lng = user.longitude ? Number(user.longitude) : null;
+              
+              if (!lat || !lng || isNaN(lat) || isNaN(lng)) return null;
+              
+              return {
+                id: user.uid || user.id || "",
+                name: user.name || "Junkshop",
+                email: user.email || "",
+                phone: user.phone || "",
+                address: user.address || "",
+                latitude: lat,
+                longitude: lng,
+                userType: user.userType,
+              };
+            })
+            .filter((shop) => shop !== null);
+          
+          console.log(`📍 [Dashboard] Firebase real-time update: Found ${junkshopsList.length} junkshops with valid locations`);
+          setJunkshops(junkshopsList);
+        } else {
+          console.log("📍 [Dashboard] No users data in Firebase");
+          setJunkshops([]);
         }
-      } catch (err) {
-        console.error('Failed to fetch junkshops for dashboard map:', err);
+      },
+      (error) => {
+        console.error("Firebase junkshops listener error:", error);
+        // Fallback to API fetch on listener error
+        (async () => {
+          try {
+            console.log("📍 [Dashboard] Falling back to API fetch for junkshops");
+            const res = await fetch('/api/junkshops');
+            if (res.ok) {
+              const data = await res.json();
+              // Filter and convert to junkshops with locations
+              const filtered = data
+                .filter((j: any) => j.userType === "junkshop" && j.latitude && j.longitude)
+                .map((j: any) => ({
+                  id: j.id || j.uid || "",
+                  name: j.name || "Junkshop",
+                  email: j.email || "",
+                  phone: j.phone || "",
+                  address: j.address || "",
+                  latitude: Number(j.latitude),
+                  longitude: Number(j.longitude),
+                  userType: j.userType,
+                }));
+              console.log(`📍 [Dashboard] API fallback returned ${filtered.length} junkshops with locations`);
+              setJunkshops(filtered);
+            }
+          } catch (err) {
+            console.error('Fallback API fetch failed:', err);
+          }
+        })();
       }
-    })();
+    );
+
+    return () => unsubscribe();
   }, []);
 
   return (
@@ -341,8 +402,17 @@ function DashboardHome({ currentUser }: { currentUser: UserType }) {
             { (import.meta.env as any).VITE_GOOGLE_MAPS_API_KEY ? (
               <div className="h-96 rounded-b-lg overflow-hidden">
                 <GoogleMapView
-                  markers={junkshops.filter(j => j.latitude && j.longitude).map((j: any) => ({ id: j.id, name: j.name, address: j.address, latitude: Number(j.latitude), longitude: Number(j.longitude) })) }
-                  center={ junkshops && junkshops.length > 0 && junkshops[0].latitude ? { lat: Number(junkshops[0].latitude), lng: Number(junkshops[0].longitude) } : undefined }
+                  markers={junkshops.map((j: any) => ({ 
+                    id: j.id, 
+                    name: j.name, 
+                    address: j.address, 
+                    latitude: typeof j.latitude === "string" ? Number(j.latitude) : j.latitude,
+                    longitude: typeof j.longitude === "string" ? Number(j.longitude) : j.longitude,
+                  }))}
+                  center={junkshops.length > 0 ? { 
+                    lat: typeof junkshops[0].latitude === "string" ? Number(junkshops[0].latitude) : junkshops[0].latitude,
+                    lng: typeof junkshops[0].longitude === "string" ? Number(junkshops[0].longitude) : junkshops[0].longitude,
+                  } : undefined}
                   height="400px"
                 />
               </div>
@@ -350,7 +420,10 @@ function DashboardHome({ currentUser }: { currentUser: UserType }) {
               <div className="rounded-b-lg overflow-hidden">
                 <JunkshopsMap
                   junkshops={junkshops}
-                  userLocation={currentUser && currentUser.latitude ? { latitude: Number(currentUser.latitude), longitude: Number(currentUser.longitude) } : undefined}
+                  userLocation={currentUser && currentUser.latitude ? { 
+                    latitude: typeof currentUser.latitude === "string" ? Number(currentUser.latitude) : currentUser.latitude,
+                    longitude: typeof currentUser.longitude === "string" ? Number(currentUser.longitude) : currentUser.longitude,
+                  } : undefined}
                   showAll={isHousehold}
                 />
               </div>

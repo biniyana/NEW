@@ -13,6 +13,8 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { UserController, ItemController } from "@/controllers";
 import { User as UserType, Item } from "@/models";
+import { ref, update } from "firebase/database";
+import { database } from "@/firebase/firebase";
 
 export default function ProfilePage() {
   type ProfileUser = UserType & { uid?: string; profileComplete?: boolean };
@@ -120,6 +122,19 @@ export default function ProfilePage() {
     }
 
     try {
+      // Save to Firebase first
+      const firebaseUid = authUid || (currentUser as any).uid;
+      if (firebaseUid) {
+        const userRef = ref(database, `users/${firebaseUid}`);
+        await update(userRef, {
+          latitude: tempLat,
+          longitude: tempLng,
+          updatedAt: new Date().toISOString(),
+        });
+        console.log(`📍 [Profile] Location saved to Firebase for user ${firebaseUid}:`, { latitude: tempLat, longitude: tempLng });
+      }
+
+      // Also save to backend via API
       if (currentUser.id) {
         const res = await fetch(`/api/users/${currentUser.id}`, {
           method: "PATCH",
@@ -135,8 +150,9 @@ export default function ProfilePage() {
       setCurrentUser(newUser);
       UserController.saveToLocalStorage(newUser as any);
       setIsLocationOpen(false);
-      toast({ title: "Location saved", description: "Shop location updated" });
+      toast({ title: "Location saved", description: "Shop location updated and map will be updated in real-time" });
     } catch (err) {
+      console.error("Location save error:", err);
       toast({ title: "Save failed", description: "Could not save location", variant: "destructive" });
     }
   };

@@ -1,5 +1,5 @@
 // src/pages/login.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Recycle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
-import { AuthController } from "@/controllers";
+import { AuthController, UserController } from "@/controllers";
 
 // Firebase imports for Google login
 import { signInWithPopup, sendEmailVerification } from "firebase/auth";
@@ -20,6 +20,37 @@ export default function Login() {
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isChecking, setIsChecking] = useState(true);
+
+  // Check if user is already authenticated on page load
+  useEffect(() => {
+    const checkAuthentication = async () => {
+      try {
+        // First, check localStorage for existing user
+        const storedUser = UserController.loadFromLocalStorage();
+        if (storedUser) {
+          // User found in localStorage, redirect to dashboard
+          setLocation("/dashboard");
+          return;
+        }
+
+        // If not in localStorage, try to fetch from server
+        const currentUser = await UserController.fetchCurrentUser();
+        if (currentUser) {
+          // User is authenticated on server, save to localStorage and redirect
+          UserController.saveToLocalStorage(currentUser);
+          setLocation("/dashboard");
+          return;
+        }
+      } catch (err) {
+        console.error("Error checking authentication:", err);
+      } finally {
+        setIsChecking(false);
+      }
+    };
+
+    checkAuthentication();
+  }, [setLocation]);
 
   // Email/password login mutation
   const loginMutation = useMutation({
@@ -33,11 +64,12 @@ export default function Login() {
         description: "Welcome back to Waiz",
       });
 
-      if (userData.profileComplete) {
-        setLocation("/dashboard");
-      } else {
-        setLocation("/complete-profile");
-      }
+      // Replace the current history entry with the dashboard page
+      // This prevents users from going back to the login page via browser back button
+      const redirectPath = userData.profileComplete ? "/dashboard" : "/complete-profile";
+      window.history.replaceState(null, "", redirectPath);
+      
+      setLocation(redirectPath);
     },
     onError: (error: any) => {
       toast({
@@ -89,6 +121,8 @@ export default function Login() {
           description: "Please complete your profile to continue.",
         });
 
+        // Replace history to prevent going back to login
+        window.history.replaceState(null, "", "/complete-profile");
         setLocation("/complete-profile");
       } else {
         // Returning user → check email verification
@@ -107,6 +141,9 @@ export default function Login() {
             title: "Login Successful!",
             description: "Welcome back to Waiz",
           });
+          
+          // Replace history to prevent going back to login
+          window.history.replaceState(null, "", "/dashboard");
           setLocation("/dashboard");
         }
       }
@@ -119,6 +156,22 @@ export default function Login() {
       console.error("Google login error:", error);
     }
   };
+
+  // Show loading state while checking authentication
+  if (isChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-background">
+        <div className="text-center">
+          <div className="inline-block">
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary to-chart-2 flex items-center justify-center mb-4 animate-pulse">
+              <Recycle className="w-8 h-8 text-primary-foreground" />
+            </div>
+            <p className="text-muted-foreground">Checking authentication...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-background">

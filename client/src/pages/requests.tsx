@@ -313,7 +313,7 @@ function RequestCard({ request, isHousehold }: { request: RequestType; isHouseho
           </Button>
         )}
 
-        {request.status === "Completed" && (
+        {(request.status === "Completed" || request.status === "Declined") && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" className="w-full" disabled={isDeleting}>
