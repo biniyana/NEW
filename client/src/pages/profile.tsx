@@ -57,7 +57,19 @@ export default function ProfilePage() {
   const [tempLat, setTempLat] = useState<number | null>(null);
   const [tempLng, setTempLng] = useState<number | null>(null);
 
-  const getCurrentUserId = () => currentUser?.id || currentUser?.uid || null;
+  // 🔐 Security Fix: Prefer uid for Firebase users (household), id for backend users
+  // uid is the Firebase authentication identifier and is always reliable
+  const getCurrentUserId = () => {
+    // For Firebase users (household), uid is the authoritative ID
+    if (currentUser?.uid) {
+      return currentUser.uid;
+    }
+    // Fallback to id for non-Firebase users
+    if (currentUser?.id) {
+      return currentUser.id;
+    }
+    return null;
+  };
 
   const handleSave = async () => {
     if (!currentUser) return;
@@ -73,38 +85,93 @@ export default function ProfilePage() {
     }
 
     try {
-      let updatedUser: ProfileUser;
+      let updatedUser: ProfileUser = currentUser;
 
-      if (currentUser.id) {
-        const response = await apiRequest("PATCH", `/api/users/${currentUser.id}`, {
+      // 🔐 Security Fix: Always update Firebase first as the source of truth
+      // Firebase is where all household user profiles are stored
+      const firebaseUid = currentUser.uid || userId;
+      
+      try {
+        // 🔧 Firebase Fix: Filter out undefined values before updating
+        // Firebase does not allow undefined values in update operations
+        const firebaseUpdateData: any = {
           name: currentUser.name,
           email: currentUser.email,
           phone: currentUser.phone,
           address: currentUser.address,
-          latitude: currentUser.latitude,
-          longitude: currentUser.longitude,
-        });
-        updatedUser = (await response.json()) as ProfileUser;
-      } else {
-        await UserController.updateProfile(userId as string, {
-          name: currentUser.name,
-          email: currentUser.email,
-          phone: currentUser.phone,
-          address: currentUser.address,
-          latitude: currentUser.latitude,
-          longitude: currentUser.longitude,
-        } as any);
+          updatedAt: new Date().toISOString(),
+        };
+
+        // Only include latitude/longitude if they are defined
+        if (currentUser.latitude !== undefined && currentUser.latitude !== null) {
+          firebaseUpdateData.latitude = currentUser.latitude;
+        }
+        if (currentUser.longitude !== undefined && currentUser.longitude !== null) {
+          firebaseUpdateData.longitude = currentUser.longitude;
+        }
+
+        console.log('📝 [profile] Firebase update data (undefined values filtered):', firebaseUpdateData);
+
+        // Update Firebase Realtime Database with the uid (primary method for household users)
+        await UserController.updateProfile(firebaseUid, firebaseUpdateData);
         updatedUser = currentUser;
+      } catch (firebaseErr) {
+        console.error('❌ Firebase update error:', firebaseErr);
+        // If Firebase update fails, that's a critical error - don't proceed
+        throw new Error('Failed to update profile in database: ' + (firebaseErr as any).message);
       }
 
+      // 🔐 Security Fix: Sync to backend storage for consistency
+      // This ensures the user is also in backend storage for searching/listings
+      try {
+        const syncData = {
+          id: firebaseUid,
+          name: currentUser.name,
+          email: currentUser.email,
+          phone: currentUser.phone,
+          address: currentUser.address,
+          userType: currentUser.userType || 'household',
+          latitude: currentUser.latitude ?? null,
+          longitude: currentUser.longitude ?? null,
+          profileComplete: true,
+        };
+
+        console.log('📤 [profile] Syncing profile to backend:', syncData);
+
+        const response = await fetch("/api/auth/profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(syncData),
+          credentials: "include",
+        });
+
+        console.log('📊 [profile] Sync response status:', response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.warn('⚠️ [profile] Profile sync to backend failed with status:', response.status, 'Response:', errorText);
+          // Don't throw - allow the save to succeed even if backend sync fails
+          // Firebase has the authoritative copy
+        } else {
+          const result = await response.json();
+          console.log('✅ [profile] Profile synced to backend successfully:', result);
+        }
+      } catch (syncErr) {
+        console.warn('⚠️ [profile] Backend sync error (non-critical):', syncErr);
+        // Don't throw - Firebase update succeeded, which is what matters
+      }
+
+      // Update UI state
       setCurrentUser(updatedUser);
       UserController.saveToLocalStorage(updatedUser as any);
+      
       toast({
         title: "Profile updated",
         description: "Your changes have been saved",
       });
       setIsEditing(false);
     } catch (error: any) {
+      console.error('❌ [profile] handleSave error:', error);
       toast({
         title: "Save failed",
         description: error?.message || "Unable to save profile changes",
@@ -122,38 +189,68 @@ export default function ProfilePage() {
     }
 
     try {
-      // Save to Firebase first
+      // 🔐 Firebase First: Update Firebase Realtime Database (primary source of truth)
       const firebaseUid = authUid || (currentUser as any).uid;
-      if (firebaseUid) {
-        const userRef = ref(database, `users/${firebaseUid}`);
-        await update(userRef, {
+      if (!firebaseUid) {
+        throw new Error("Unable to identify authenticated user for location save");
+      }
+
+      const userRef = ref(database, `users/${firebaseUid}`);
+      await update(userRef, {
+        latitude: tempLat,
+        longitude: tempLng,
+        updatedAt: new Date().toISOString(),
+      });
+      console.log(`📍 [Profile] Location saved to Firebase for user ${firebaseUid}:`, { latitude: tempLat, longitude: tempLng });
+
+      // 🔐 Backend Sync: Also save to backend for consistency
+      try {
+        const syncData = {
+          id: firebaseUid,
           latitude: tempLat,
           longitude: tempLng,
-          updatedAt: new Date().toISOString(),
-        });
-        console.log(`📍 [Profile] Location saved to Firebase for user ${firebaseUid}:`, { latitude: tempLat, longitude: tempLng });
-      }
+        };
 
-      // Also save to backend via API
-      if (currentUser.id) {
-        const res = await fetch(`/api/users/${currentUser.id}`, {
-          method: "PATCH",
+        const res = await fetch(`/api/auth/profile`, {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ latitude: tempLat, longitude: tempLng }),
+          body: JSON.stringify({
+            id: firebaseUid,
+            name: currentUser.name,
+            email: currentUser.email,
+            phone: currentUser.phone,
+            address: currentUser.address,
+            userType: currentUser.userType || 'household',
+            latitude: tempLat,
+            longitude: tempLng,
+          }),
+          credentials: "include",
         });
-        await res.json();
-      } else {
-        await UserController.updateLocation(userId as string, tempLat, tempLng);
+
+        if (!res.ok) {
+          console.warn('⚠️ [Profile] Backend location sync failed with status:', res.status);
+          // Don't throw - Firebase succeeded which is what matters
+        } else {
+          console.log('✅ [Profile] Location synced to backend successfully');
+        }
+      } catch (syncErr) {
+        console.warn('⚠️ [Profile] Backend location sync error (non-critical):', syncErr);
+        // Don't throw - Firebase update succeeded
       }
 
+      // Update UI state
       const newUser = { ...currentUser, latitude: String(tempLat), longitude: String(tempLng) } as ProfileUser;
       setCurrentUser(newUser);
       UserController.saveToLocalStorage(newUser as any);
       setIsLocationOpen(false);
       toast({ title: "Location saved", description: "Shop location updated and map will be updated in real-time" });
-    } catch (err) {
-      console.error("Location save error:", err);
-      toast({ title: "Save failed", description: "Could not save location", variant: "destructive" });
+    } catch (err: any) {
+      console.error("❌ Location save error:", err);
+      toast({ 
+        title: "Save failed", 
+        description: err?.message || "Could not save location", 
+        variant: "destructive" 
+      });
     }
   };
 
@@ -188,26 +285,6 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-    {/* Household user's marketplace listing count */}
-    {isHousehold && (
-      <Card className="md:col-span-3">
-        <CardHeader>
-          <CardTitle>Marketplace Listings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="text-4xl font-bold text-primary">{items.length}</div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {items.length === 0
-                  ? "You haven't posted any items yet. Head to Marketplace to get started!"
-                  : `You have listed ${items.length} item${items.length !== 1 ? "s" : ""} for sale`}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    )}
         <Card className="md:col-span-2">
           <CardHeader>
             <div className="flex justify-between items-center">

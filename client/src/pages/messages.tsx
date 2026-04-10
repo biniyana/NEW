@@ -7,11 +7,27 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Message, User } from "@/models";
-import { Send, MessageCircle, Search, X, Loader2 } from "lucide-react";
+import { Send, MessageCircle, Search, X, Loader2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ref, onValue, set, update, get } from "firebase/database";
 import { database } from "@/firebase/firebase";
-import { getOtherParticipantName, sendConversationMessage, fetchUserNameFromDB } from "@/lib/firebaseConversations";
+import {
+  getOtherParticipantName,
+  sendConversationMessage,
+  fetchUserNameFromDB,
+  getOrCreateConversation,
+  markMessagesAsRead as markMessagesAsReadFromLib,
+  deleteConversation,
+} from "@/lib/firebaseConversations";
 
 export default function MessagesPage() {
   const userStr = localStorage.getItem("user");
@@ -34,6 +50,8 @@ export default function MessagesPage() {
   const [conversationMessages, setConversationMessages] = useState<any[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [isLoadingUserName, setIsLoadingUserName] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -99,9 +117,11 @@ export default function MessagesPage() {
             });
           setConversationMessages(msgList);
 
-          // Mark messages as read
-          if (currentUser?.id) {
-            markMessagesAsRead(selectedConversationId, currentUser.id);
+          // 🔧 Mark messages as read using stable Firebase pattern
+          if (currentUser?.id && selectedConversationId) {
+            markMessagesAsReadFromLib(selectedConversationId, currentUser.id).catch((err) => {
+              console.warn('⚠️ Failed to mark messages as read (non-critical):', err);
+            });
           }
 
           // Auto-scroll to latest message
@@ -125,23 +145,7 @@ export default function MessagesPage() {
     return () => unsubscribe();
   }, [selectedConversationId, currentUser?.id]);
 
-  // Mark messages as read
-  const markMessagesAsRead = async (conversationId: string, userId: string) => {
-    try {
-      const unreadMessages = conversationMessages.filter(
-        (msg: any) => msg.receiverId === userId && !msg.read
-      );
-
-      for (const message of unreadMessages) {
-        const messageRef = ref(database, `conversations/${conversationId}/messages/${message.id}/read`);
-        await set(messageRef, true);
-      }
-    } catch (error) {
-      console.error("Error marking messages as read:", error);
-    }
-  };
-
-  // Handle URL parameters
+  // Handle URL parameters to select conversation
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -212,74 +216,95 @@ export default function MessagesPage() {
     }
   }, [selectedConversation, selectedUser, selectedUserName]);
 
+  /**
+   * 🔧 STABLE Firebase Chat: Send message through conversation
+   * Automatically creates conversation if needed
+   */
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!messageText.trim() || !currentUser) return;
 
-    // If conversation not yet created, use legacy message system for now
-    if (!selectedConversationId && selectedUser) {
-      setIsSending(true);
-      try {
-        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const messageRef = ref(database, `messages/${messageId}`);
-
-        const messageData = {
-          id: messageId,
-          senderId: currentUser.id,
-          senderName: currentUser.name,
-          receiverId: selectedUser,
-          receiverName: selectedUserName || "User",
-          content: messageText,
-          read: false,
-          timestamp: new Date().toISOString(),
-        };
-
-        await set(messageRef, messageData);
-        console.log("✅ Message sent to Firebase:", messageId);
-        setMessageText("");
-      } catch (error: any) {
-        console.error("Error sending message:", error);
-        toast({
-          title: "Failed to send message",
-          description: error.message,
-          variant: "destructive",
-        });
-      } finally {
-        setIsSending(false);
-      }
-      return;
-    }
-
-    // Send through conversation
-    if (!selectedConversationId) {
-      toast({
-        title: "Error",
-        description: "Please select a conversation",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsSending(true);
     try {
+      let conversationId = selectedConversationId;
+
+      // 🔧 If no conversation yet, create one first
+      if (!conversationId && selectedUser) {
+        console.log("📝 Creating conversation for first message...");
+        conversationId = await getOrCreateConversation(currentUser.id, selectedUser);
+        setSelectedConversationId(conversationId);
+      }
+
+      // Require valid conversation and recipient
+      if (!conversationId || !selectedUser) {
+        toast({
+          title: "Error",
+          description: "Please select a valid user to message",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Get recipient name
+      const recipientName = selectedUserName || selectedConversation?.userName || "User";
+
+      // Send message through stable Firebase pattern
       await sendConversationMessage(
-        selectedConversationId,
+        conversationId,
         currentUser.id,
         currentUser.name,
-        selectedUser || selectedConversation?.userId || "",
-        selectedUserName || selectedConversation?.userName || "User",
+        selectedUser,
+        recipientName,
         messageText
       );
+
+      console.log(`✅ Message sent successfully to ${recipientName}`);
       setMessageText("");
+
+      // Optional: Show success feedback
+      toast({
+        title: "Message sent",
+        description: `Message delivered to ${recipientName}`,
+      });
     } catch (error: any) {
-      console.error("Error sending message:", error);
+      console.error("❌ Error sending message:", error);
       toast({
         title: "Failed to send message",
-        description: error.message,
+        description: error.message || "Check your connection and try again",
+        variant: "destructive",
+      });
+    }
+  };
+
+  /**
+   * Handle conversation deletion
+   */
+  const handleDeleteConversation = async () => {
+    if (!selectedConversationId) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteConversation(selectedConversationId);
+      
+      toast({
+        title: "Conversation deleted",
+        description: "The conversation has been removed",
+      });
+
+      // Reset UI
+      setSelectedConversationId(null);
+      setSelectedUser(null);
+      setSelectedUserName("");
+      setShowDeleteDialog(false);
+    } catch (error: any) {
+      console.error("❌ Error deleting conversation:", error);
+      toast({
+        title: "Failed to delete conversation",
+        description: error.message || "Please try again",
         variant: "destructive",
       });
     } finally {
-      setIsSending(false);
+      setIsDeleting(false);
     }
   };
 
@@ -392,19 +417,31 @@ export default function MessagesPage() {
                       </CardTitle>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      setSelectedConversationId(null);
-                      setSelectedUser(null);
-                      setSelectedUserName("");
-                    }}
-                    className="md:hidden"
-                    data-testid="button-back-conversations"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowDeleteDialog(true)}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      title="Delete conversation"
+                      data-testid="button-delete-conversation"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setSelectedConversationId(null);
+                        setSelectedUser(null);
+                        setSelectedUserName("");
+                      }}
+                      className="md:hidden"
+                      data-testid="button-back-conversations"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
                 <div className="relative mt-3">
                   <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
@@ -509,6 +546,37 @@ export default function MessagesPage() {
           )}
         </Card>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Conversation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this conversation with {selectedUserName}? This action cannot be undone and all messages will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex gap-3 justify-end">
+            <AlertDialogCancel disabled={isDeleting}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConversation}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

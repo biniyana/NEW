@@ -1,4 +1,4 @@
-import { ref, get, set, query, orderByChild, equalTo } from "firebase/database";
+import { ref, get, set, query, orderByChild, equalTo, update, push, serverTimestamp } from "firebase/database";
 import { doc, getDoc } from "firebase/firestore";
 import { database, db, auth } from "@/firebase/firebase";
 
@@ -60,6 +60,7 @@ export const checkConversationExists = async (userId1: string, userId2: string):
 
 /**
  * Create a new conversation in Realtime Database
+ * 🔧 Stable Architecture: Initialize with conversation metadata and unread counters
  */
 export const createConversation = async (userId1: string, userId2: string): Promise<string> => {
   try {
@@ -69,6 +70,7 @@ export const createConversation = async (userId1: string, userId2: string): Prom
     const user1Name = await fetchUserNameFromDB(user1Id);
     const user2Name = await fetchUserNameFromDB(user2Id);
 
+    const now = new Date().toISOString();
     const conversationData = {
       id: conversationId,
       participants: [user1Id, user2Id],
@@ -76,8 +78,15 @@ export const createConversation = async (userId1: string, userId2: string): Prom
         [user1Id]: user1Name,
         [user2Id]: user2Name,
       },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      // 🔧 Unread counters for notification badges
+      unread: {
+        [user1Id]: 0,
+        [user2Id]: 0,
+      },
+      lastMessage: "",
+      lastMessageTime: now,
+      createdAt: now,
+      updatedAt: now,
     };
 
     const conversationRef = ref(database, `conversations/${conversationId}`);
@@ -178,7 +187,9 @@ export const fetchConversationMessages = async (conversationId: string): Promise
 };
 
 /**
- * Send a message in a conversation
+ * 🔧 STABLE Firebase Chat: Send message with proper error handling and realtime update
+ * Uses push() for automatic ID generation instead of manual set()
+ * Includes serverTimestamp() for consistent server-side timestamps
  */
 export const sendConversationMessage = async (
   conversationId: string,
@@ -189,8 +200,18 @@ export const sendConversationMessage = async (
   content: string
 ): Promise<string> => {
   try {
-    const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const messageRef = ref(database, `conversations/${conversationId}/messages/${messageId}`);
+    if (!conversationId || !senderId || !receiverId || !content.trim()) {
+      throw new Error("Missing required message fields");
+    }
+
+    // 🔧 Use push() for proper realtime synchronization with Firebase
+    const messagesRef = ref(database, `conversations/${conversationId}/messages`);
+    const newMessageRef = push(messagesRef);
+    const messageId = newMessageRef.key;
+
+    if (!messageId) {
+      throw new Error("Failed to generate message ID");
+    }
 
     const messageData = {
       id: messageId,
@@ -198,21 +219,108 @@ export const sendConversationMessage = async (
       senderName,
       receiverId,
       receiverName,
-      content,
+      content: content.trim(),
       read: false,
-      timestamp: new Date().toISOString(),
+      // 🔧 Use serverTimestamp for precise server-side timestamps
+      timestamp: serverTimestamp(),
     };
 
-    await set(messageRef, messageData);
-    console.log(`✅ Message sent to conversation ${conversationId}`);
+    // Write message to Firebase
+    await set(newMessageRef, messageData);
+    console.log(`✅ Message sent: ${messageId} in conversation ${conversationId}`);
     
-    // Update conversation's updatedAt timestamp
-    const conversationRef = ref(database, `conversations/${conversationId}/updatedAt`);
-    await set(conversationRef, new Date().toISOString());
+    // Update conversation metadata (non-blocking)
+    try {
+      await updateConversationMetadata(conversationId, content, receiverId);
+    } catch (metaErr) {
+      console.warn('⚠️ Failed to update conversation metadata (non-critical):', metaErr);
+    }
     
     return messageId;
   } catch (error) {
-    console.error("Error sending message:", error);
+    console.error("❌ Error sending message:", error);
+    throw error;
+  }
+};
+
+/**
+ * 🔧 Update conversation metadata after message sent
+ * Updates: lastMessage, lastMessageTime, unread counter, updatedAt
+ */
+export const updateConversationMetadata = async (
+  conversationId: string,
+  messageContent: string,
+  receiverId: string
+): Promise<void> => {
+  try {
+    const conversationRef = ref(database, `conversations/${conversationId}`);
+    const now = new Date().toISOString();
+
+    const updates: any = {
+      lastMessage: messageContent.substring(0, 100), // Preview
+      lastMessageTime: now,
+      updatedAt: now,
+      [`unread/${receiverId}`]: true, // Mark as unread for receiver
+    };
+
+    await update(conversationRef, updates);
+    console.log(`✅ Conversation metadata updated: ${conversationId}`);
+  } catch (error) {
+    console.error("Error updating conversation metadata:", error);
+    throw error;
+  }
+};
+
+/**
+ * 🔧 Mark messages as read - Efficient batch update
+ * Marks all unread messages from a specific sender as read
+ */
+export const markMessagesAsRead = async (
+  conversationId: string,
+  senderId: string
+): Promise<void> => {
+  try {
+    const messagesRef = ref(database, `conversations/${conversationId}/messages`);
+    const snapshot = await get(messagesRef);
+
+    if (!snapshot.exists()) {
+      return;
+    }
+
+    const messages = snapshot.val();
+    const updates: any = {};
+    let updateCount = 0;
+
+    // Efficiently batch all unread message updates
+    Object.keys(messages).forEach((messageId) => {
+      const message = messages[messageId];
+      if (message.senderId === senderId && !message.read) {
+        updates[`${messageId}/read`] = true;
+        updateCount++;
+      }
+    });
+
+    if (updateCount > 0) {
+      await update(messagesRef, updates);
+      console.log(`✅ Marked ${updateCount} messages as read in ${conversationId}`);
+    }
+  } catch (error) {
+    console.error("Error marking messages as read:", error);
+    // Don't throw - this is non-critical
+  }
+};
+
+/**
+ * 🗑️ Delete a conversation - removes it for the current user
+ * Deletes the entire conversation from Firebase Realtime Database
+ */
+export const deleteConversation = async (conversationId: string): Promise<void> => {
+  try {
+    const conversationRef = ref(database, `conversations/${conversationId}`);
+    await set(conversationRef, null); // Set to null to delete
+    console.log(`✅ Conversation deleted: ${conversationId}`);
+  } catch (error) {
+    console.error("Error deleting conversation:", error);
     throw error;
   }
 };

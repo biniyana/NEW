@@ -78,10 +78,30 @@ export class UserController {
 
   /**
    * Update user profile
+   * 🔧 Firebase Fix: Filters out undefined values before update
+   * Firebase does not allow undefined values in update operations
    */
   static async updateProfile(uid: string, data: Partial<User>): Promise<void> {
     const userRef = ref(database, `users/${uid}`);
-    await update(userRef, data);
+    
+    // Filter out undefined values - Firebase doesn't allow them
+    const cleanData: any = {};
+    Object.keys(data).forEach((key) => {
+      const value = (data as any)[key];
+      // Include the value if it's not undefined (null is allowed)
+      if (value !== undefined) {
+        cleanData[key] = value;
+      }
+    });
+
+    console.log('📝 [UserController.updateProfile] Cleaned data (undefined removed):', cleanData);
+    
+    // Only call update if we have data to update
+    if (Object.keys(cleanData).length > 0) {
+      await update(userRef, cleanData);
+    } else {
+      console.warn('⚠️ [UserController.updateProfile] No valid data to update - all values were undefined');
+    }
   }
 
   /**
@@ -141,5 +161,47 @@ export class UserController {
   static async completeProfile(uid: string): Promise<void> {
     const userRef = ref(database, `users/${uid}`);
     await update(userRef, { profileComplete: true });
+  }
+
+  /**
+   * 🔐 Security Fix: Validate that stored user matches server session
+   * This prevents unauthorized access or session leaks
+   * @returns true if stored user is valid and authorized, false otherwise
+   */
+  static async isStoredUserValid(): Promise<boolean> {
+    try {
+      const storedUser = this.loadFromLocalStorage();
+      if (!storedUser) {
+        return false;
+      }
+
+      // Verify against server
+      const serverUser = await this.fetchCurrentUser();
+      if (!serverUser) {
+        return false;
+      }
+
+      // Check if UIDs match (handle both 'id' and 'uid' fields)
+      const storedUid = (storedUser as any).id || (storedUser as any).uid;
+      const serverUid = (serverUser as any).id || (serverUser as any).uid;
+
+      if (storedUid !== serverUid) {
+        console.warn('🔐 Session validation failed: stored user UID does not match server');
+        return false;
+      }
+
+      return true;
+    } catch (err) {
+      console.error('Error validating user session:', err);
+      return false;
+    }
+  }
+
+  /**
+   * 🔐 Security Fix: Clear user session completely
+   * Use this when transitioning between auth states
+   */
+  static clearSession(): void {
+    this.removeFromLocalStorage();
   }
 }

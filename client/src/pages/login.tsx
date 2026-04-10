@@ -16,29 +16,66 @@ import { auth, googleProvider, database } from "../firebase.Config";
 import { ref, get, set } from "firebase/database";
 
 export default function Login() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isChecking, setIsChecking] = useState(true);
 
+  // Get query parameters from URL
+  const getSearchParams = () => {
+    const params = new URLSearchParams(window.location.search);
+    return {
+      fromSignup: params.get("fromSignup") === "true",
+    };
+  };
+
   // Check if user is already authenticated on page load
   useEffect(() => {
     const checkAuthentication = async () => {
       try {
-        // First, check localStorage for existing user
-        const storedUser = UserController.loadFromLocalStorage();
-        if (storedUser) {
-          // User found in localStorage, redirect to dashboard
-          setLocation("/dashboard");
+        // 🔐 Security Fix: Don't auto-redirect if user is coming from signup
+        // This prevents accidental session leaks where the old localStorage user
+        // would be used instead of the newly signed-up user
+        const { fromSignup } = getSearchParams();
+        
+        if (fromSignup) {
+          // User explicitly navigated from signup to login
+          // Let them take action - don't auto-redirect
+          console.log("🔐 User coming from signup - skipping auto-redirect for security");
+          setIsChecking(false);
           return;
         }
 
-        // If not in localStorage, try to fetch from server
+        // First, check localStorage for existing user
+        const storedUser = UserController.loadFromLocalStorage();
+        if (storedUser) {
+          // 🔐 Security Fix: Validate the stored user matches server session
+          // This prevents stale session leaks
+          try {
+            const currentUser = await UserController.fetchCurrentUser();
+            if (currentUser && (currentUser.uid === storedUser.id || currentUser.uid === (storedUser as any).uid)) {
+              // ✅ Server confirms this user is authenticated - safe to redirect
+              console.log("✅ Session validated - redirecting to dashboard");
+              setLocation("/dashboard");
+              return;
+            } else {
+              // ⚠️ Stored user doesn't match server session - clear it
+              console.warn("⚠️ Stored user doesn't match server session - clearing localStorage");
+              UserController.removeFromLocalStorage();
+            }
+          } catch (err) {
+            console.warn("⚠️ Could not validate session against server:", err);
+            // Continue to check server session below
+          }
+        }
+
+        // If not in localStorage or validation failed, try to fetch from server
         const currentUser = await UserController.fetchCurrentUser();
         if (currentUser) {
           // User is authenticated on server, save to localStorage and redirect
           UserController.saveToLocalStorage(currentUser);
+          console.log("✅ Server session found - redirecting to dashboard");
           setLocation("/dashboard");
           return;
         }

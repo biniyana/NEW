@@ -10,6 +10,11 @@ import { useMutation } from "@tanstack/react-query";
 import { AuthController } from "@/controllers";
 import { UserController } from "@/controllers";
 
+// Firebase imports for Google signup
+import { signInWithPopup, sendEmailVerification } from "firebase/auth";
+import { auth, googleProvider, database } from "../firebase.Config";
+import { ref, get, set } from "firebase/database";
+
 export default function Signup() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -27,6 +32,10 @@ export default function Signup() {
       return AuthController.signup(data.email, data.password, name, userType);
     },
     onSuccess: (user) => {
+      // Clear any existing session before saving new user
+      // This prevents session leaks from previous logins
+      UserController.removeFromLocalStorage();
+      
       // New account - profile is incomplete
       const userData = {
         uid: user.uid,
@@ -71,6 +80,58 @@ export default function Signup() {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Google signup function with first-time user handling
+  const handleGoogleSignup = async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+
+      const userRef = ref(database, "users/" + user.uid);
+      const snapshot = await get(userRef);
+
+      // Save user in Realtime DB
+      await set(userRef, {
+        uid: user.uid,
+        name: user.displayName,
+        email: user.email,
+        photo: user.photoURL,
+        profileComplete: false,
+        createdAt: new Date().toISOString(),
+      });
+
+      // Clear any existing session before saving new user
+      // This prevents session leaks from previous logins
+      UserController.removeFromLocalStorage();
+
+      localStorage.setItem(
+        "user",
+        JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          name: user.displayName,
+          photo: user.photoURL,
+          profileComplete: false,
+        })
+      );
+
+      toast({
+        title: "Account created!",
+        description: "Please complete your profile to get started",
+      });
+
+      // Replace history to prevent going back to signup
+      window.history.replaceState(null, "", "/complete-profile");
+      setLocation("/complete-profile");
+    } catch (error: any) {
+      toast({
+        title: "Google signup failed",
+        description: error.message || "Failed to sign up with Google",
+        variant: "destructive",
+      });
+      console.error("Google signup error:", error);
+    }
   };
 
   return (
@@ -135,7 +196,7 @@ export default function Signup() {
                 type="button"
                 variant="outline"
                 className="w-full flex items-center justify-center gap-2"
-                onClick={() => (window.location.href = "/auth/google")}
+                onClick={handleGoogleSignup}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path d="M21.35 11.1h-9.18v2.92h5.26c-.23 1.3-1.14 2.4-2.42 3.13v2.6h3.9c2.28-2.1 3.6-5.2 3.6-8.92 0-.6-.05-1.18-.12-1.73z" fill="#4285F4"/>
@@ -151,7 +212,7 @@ export default function Signup() {
           <div className="mt-6 text-center">
             <p className="text-sm text-muted-foreground">
               Already have an account?{" "}
-              <Link href="/login">
+              <Link href="/login?fromSignup=true">
                 <span className="text-primary font-semibold hover:underline cursor-pointer">
                   Log In
                 </span>

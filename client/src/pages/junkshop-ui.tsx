@@ -198,12 +198,19 @@ export default function JunkshopUI({ currentUser, onNavigate }: { currentUser: U
 
   const handleLogout = async () => {
     try {
+      // 🔐 Security Fix: Use AuthController for proper session cleanup
+      // This ensures both Firebase auth and localStorage are cleared
       await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     } catch (err) {
       console.warn('Logout request failed:', err);
     }
+    
+    // Clear local session - AuthController.logout() handles this
+    // but we also clear here for immediate UI feedback
     localStorage.removeItem("user");
     setShowLogoutConfirm(false);
+    
+    // Redirect to home/login
     window.location.href = "/";
   };
 

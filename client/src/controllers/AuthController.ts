@@ -85,9 +85,14 @@ export class AuthController {
   }
 
   /**
-   * Logout current user
+   * Logout current user - clears both Firebase auth and localStorage
+   * 🔐 Security Fix: Clear localStorage BEFORE signing out to prevent session leaks
    */
   static async logout(): Promise<void> {
+    // Clear localStorage first (prevents session leaks)
+    localStorage.removeItem('user');
+    
+    // Sign out from Firebase
     await signOut(auth);
   }
 
