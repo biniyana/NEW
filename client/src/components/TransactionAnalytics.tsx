@@ -307,7 +307,7 @@ export default function TransactionAnalytics({ currentUser }: TransactionAnalyti
             <Card>
               <CardHeader>
                 <CardTitle>
-                  {stats.userType === 'household' ? 'What You Sold' : 'What You Bought'}
+                  {stats.userType === 'household' ? 'What You Sold' : 'Material Intake'}
                 </CardTitle>
               </CardHeader>
               <CardContent>
