@@ -6,11 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Request as RequestType, User } from "@/models";
-import { Plus, Calendar, MapPin, Image as ImageIcon } from "lucide-react";
+import { Plus, Calendar, MapPin, Image as ImageIcon, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ref, onValue, set, update, push, get } from "firebase/database";
+import { ref, onValue, set, update, push, get, remove } from "firebase/database";
 import { database } from "@/firebase/firebase";
 
 export default function RequestsPage() {
@@ -149,6 +150,7 @@ function RequestCard({ request, isHousehold }: { request: RequestType; isHouseho
   const { toast } = useToast();
   const [requesterItems, setRequesterItems] = useState<any[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const statusColors: Record<string, "secondary" | "default" | "outline" | "destructive"> = {
     Pending: "secondary",
@@ -184,15 +186,67 @@ function RequestCard({ request, isHousehold }: { request: RequestType; isHouseho
     }
   };
 
+  const deleteRequest = async () => {
+    if (!request.id) return;
+    
+    setIsDeleting(true);
+    try {
+      const requestRef = ref(database, `requests/${request.id}`);
+      await remove(requestRef);
+      toast({
+        title: "Request deleted",
+        description: "The collection request has been successfully deleted",
+      });
+    } catch (error: any) {
+      console.error("Error deleting request:", error);
+      toast({
+        title: "Failed to delete request",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   React.useEffect(() => {
-    (async () => {
-      try {
-        const items = await fetch(`/api/items?sellerId=${encodeURIComponent(request.requesterId)}`).then(r => r.json()).catch(() => []);
-        setRequesterItems(items || []);
-      } catch (e) {
-        console.error("Error fetching items:", e);
+    if (!request.requesterId) return;
+
+    // Fetch items from Firebase in real-time
+    const itemsRef = ref(database, "items");
+    const unsubscribe = onValue(
+      itemsRef,
+      (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          const itemsList: any[] = Object.values(data)
+            .filter((item: any) => item.sellerId === request.requesterId)
+            .map((item: any) => ({
+              id: item.id,
+              title: item.title,
+              category: item.category,
+              price: item.price,
+              description: item.description || null,
+              imageUrl: item.imageUrl || null,
+              imageUrls: item.imageUrls || null,
+              sellerId: item.sellerId,
+              sellerName: item.sellerName,
+              emoji: item.emoji || null,
+              status: item.status || "available",
+              createdAt: item.createdAt ? new Date(item.createdAt) : null,
+            }));
+          setRequesterItems(itemsList);
+        } else {
+          setRequesterItems([]);
+        }
+      },
+      (error) => {
+        console.error("Error fetching items from Firebase:", error);
+        setRequesterItems([]);
       }
-    })();
+    );
+
+    return () => unsubscribe();
   }, [request.requesterId]);
 
   return (
@@ -258,6 +312,31 @@ function RequestCard({ request, isHousehold }: { request: RequestType; isHouseho
             {isUpdating ? "Marking..." : "Mark Completed"}
           </Button>
         )}
+
+        {request.status === "Completed" && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" className="w-full" disabled={isDeleting}>
+                <Trash2 className="w-4 h-4 mr-2" />
+                {isDeleting ? "Deleting..." : "Delete"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Collection Request?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete this collection request. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={deleteRequest} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </CardFooter>
     </Card>
   );
@@ -286,20 +365,50 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
 
   // Load household items and available junkshops
   React.useEffect(() => {
-    (async () => {
-      if (!currentUser) return;
-      const currentUserId = (currentUser as any).id || (currentUser as any).uid;
-      if (!currentUserId) return;
+    if (!currentUser) return;
+    const currentUserId = (currentUser as any).id || (currentUser as any).uid;
+    if (!currentUserId) return;
 
-      try {
-        const items = await fetch(`/api/items?sellerId=${encodeURIComponent(currentUserId)}`).then(r => r.json()).catch(() => []);
-        setAvailableItems(items || []);
-        if ((!formData.items || formData.items.length === 0) && items && items.length > 0) {
-          setFormData(f => ({ ...f, items: items.map((it: any) => it.title).join("; ") }));
+    // Fetch user's items from Firebase with real-time listener
+    const itemsRef = ref(database, "items");
+    const unsubscribe = onValue(
+      itemsRef,
+      (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          const itemsList: any[] = Object.values(data)
+            .filter((item: any) => item.sellerId === currentUserId)
+            .map((item: any) => ({
+              id: item.id,
+              title: item.title,
+              category: item.category,
+              price: item.price,
+              description: item.description || null,
+              imageUrl: item.imageUrl || null,
+              imageUrls: item.imageUrls || null,
+              sellerId: item.sellerId,
+              sellerName: item.sellerName,
+              emoji: item.emoji || null,
+              status: item.status || "available",
+              createdAt: item.createdAt ? new Date(item.createdAt) : null,
+            }));
+          setAvailableItems(itemsList);
+          // Auto-populate items field if empty
+          if ((!formData.items || formData.items.length === 0) && itemsList && itemsList.length > 0) {
+            setFormData(f => ({ ...f, items: itemsList.map((it: any) => it.title).join("; ") }));
+          }
+        } else {
+          setAvailableItems([]);
         }
-      } catch (e) {
-        // ignore
+      },
+      (error) => {
+        console.error("Error fetching items from Firebase:", error);
+        setAvailableItems([]);
       }
+    );
+
+    // Fetch junkshops
+    (async () => {
       try {
         const usersRef = ref(database, "users");
         const usersSnap = await get(usersRef);
@@ -308,9 +417,13 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
           .filter((u: any) => u.userType === "junkshop" && u.profileComplete)
           .map((u: any) => ({ ...u, id: u.id || u.uid }));
         setJunkshops(shops);
-      } catch (e) {}
+      } catch (e) {
+        console.error("Error fetching junkshops:", e);
+      }
     })();
-  }, []);
+
+    return () => unsubscribe();
+  }, [currentUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
