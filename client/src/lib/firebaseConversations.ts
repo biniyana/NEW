@@ -229,12 +229,10 @@ export const sendConversationMessage = async (
     await set(newMessageRef, messageData);
     console.log(`✅ Message sent: ${messageId} in conversation ${conversationId}`);
     
-    // Update conversation metadata (non-blocking)
-    try {
-      await updateConversationMetadata(conversationId, content, receiverId);
-    } catch (metaErr) {
+    // 🚀 Update conversation metadata (truly non-blocking - fire and forget)
+    updateConversationMetadata(conversationId, content, receiverId).catch((metaErr) => {
       console.warn('⚠️ Failed to update conversation metadata (non-critical):', metaErr);
-    }
+    });
     
     return messageId;
   } catch (error) {

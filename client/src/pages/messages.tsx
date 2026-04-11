@@ -159,6 +159,11 @@ export default function MessagesPage() {
         setSelectedUser(userId);
       }
 
+      // Always set userId if present (needed for message sending)
+      if (userId) {
+        setSelectedUser(userId);
+      }
+
       if (userName) {
         setSelectedUserName(decodeURIComponent(userName));
       }
@@ -219,12 +224,17 @@ export default function MessagesPage() {
   /**
    * 🔧 STABLE Firebase Chat: Send message through conversation
    * Automatically creates conversation if needed
+   * 🚀 Optimized for speed - clears input immediately
    */
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageText.trim() || !currentUser) return;
+    const messageToSend = messageText.trim();
+    if (!messageToSend || !currentUser) return;
 
     setIsSending(true);
+    // 🚀 Clear input immediately for instant UI feedback
+    setMessageText("");
+
     try {
       let conversationId = selectedConversationId;
 
@@ -237,6 +247,7 @@ export default function MessagesPage() {
 
       // Require valid conversation and recipient
       if (!conversationId || !selectedUser) {
+        setIsSending(false);
         toast({
           title: "Error",
           description: "Please select a valid user to message",
@@ -255,19 +266,18 @@ export default function MessagesPage() {
         currentUser.name,
         selectedUser,
         recipientName,
-        messageText
+        messageToSend
       );
 
       console.log(`✅ Message sent successfully to ${recipientName}`);
-      setMessageText("");
 
-      // Optional: Show success feedback
-      toast({
-        title: "Message sent",
-        description: `Message delivered to ${recipientName}`,
-      });
+      // 🚀 Non-blocking success feedback - don't wait for render
+      setIsSending(false);
     } catch (error: any) {
       console.error("❌ Error sending message:", error);
+      // Restore message on error
+      setMessageText(messageToSend);
+      setIsSending(false);
       toast({
         title: "Failed to send message",
         description: error.message || "Check your connection and try again",
@@ -473,7 +483,7 @@ export default function MessagesPage() {
                           Start a conversation with {selectedUserName || "this user"}
                         </p>
                         <p className="mt-2 text-sm text-muted-foreground">
-                          Your first message will appear here and be saved to Firebase.
+                          Your first message will appear here.
                         </p>
                       </div>
                     </div>

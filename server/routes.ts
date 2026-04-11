@@ -877,58 +877,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (
       message.includes("marketplace") ||
       message.includes("sell") ||
-      message.includes("list")
+      message.includes("list") ||
+      message.includes("add item")
     ) {
-      return paragraph(
-        "To list an item for sale on Waiz, go to the Marketplace and use the Add Item flow. Provide a clear title, choose the right category, set a fair price, and include photos and a short description. Clean, well-described materials sell faster.",
-        "/marketplace"
-      );
+      return "📦 **How to List an Item on Marketplace:**\n\n1. Go to Marketplace → Click 'Add Item'\n2. Fill in:\n   • Item title (e.g., 'Plastic Bottles 50pcs')\n   • Category (Plastic, Paper, Metal, Glass, etc.)\n   • Price in ₱\n   • Description (optional)\n3. Click 'Add Item'\n4. Your item appears instantly!\n\nTip: Clean, well-described items sell faster! ✨";
     }
 
     if (message.includes("collection") || message.includes("request")) {
-      return paragraph(
-        "Creating a collection request is easy: go to the Requests page, describe the items you want collected, provide your pickup address and preferred date, then submit. Junkshops will review and contact you to confirm.",
-        "/requests"
-      );
+      return "📋 **How to Create a Collection Request:**\n\n1. Go to Dashboard → Requests tab\n2. Click 'Create Request'\n3. Describe the items you want collected\n4. Enter your address in Baguio\n5. Select preferred pickup date\n6. Submit the request\n7. Junkshops will review and contact you to confirm! ✓\n\nTip: Be specific about items (e.g., '50 plastic bottles, newspapers') for faster responses.";
     }
 
     if (message.includes("contact") || message.includes("chat") || message.includes("message")) {
-      return paragraph(
-        "You can contact sellers or junkshops from the Marketplace or from a listing's detail page. Use Messages to start a conversation, confirm prices and arrange pickup details. Always be clear about quantity, condition, and preferred meeting/pickup times.",
-        "/messages"
-      );
+      return "💬 **How to Message Someone:**\n\n**From Marketplace:**\n1. Find an item you're interested in\n2. Click 'Contact Seller'\n3. Start chatting!\n\n**From Messages Tab:**\n1. Click Messages in dashboard\n2. Select a conversation or start new\n3. Type and send\n\nTip: Be clear about quantity, condition, and pickup time for smooth deals! 🤝";
     }
 
     if (message.includes("recycle") || message.includes("eco") || message.includes("green")) {
-      return paragraph(
-        "Waiz encourages responsible recycling. Recycling reduces landfill, conserves resources, and can provide income. Tip: sort materials by type and clean them where possible — this improves price and acceptability.",
-        "/recycling-map"
-      );
+      return "♻️ **Why Recycle with Waiz?**\n\n✓ Reduces landfill waste\n✓ Conserves natural resources\n✓ Supports sustainability\n✓ Earns you money!\n\n**Pro Tips:**\n• Sort materials by type\n• Clean items before collection\n• Bundle similar items\n• Accurate descriptions = better prices\n\nEvery item recycled makes a difference! 🌱";
     }
 
-    if (message.includes("household") || message.includes("junkshop")) {
-      return paragraph(
-        "Waiz supports two main user types. Households can list items, create collection requests, and browse the marketplace. Junkshops can list prices, respond to requests, and purchase recyclable materials. Both can message each other to coordinate pickups.",
-        "/"
-      );
+    if (message.includes("household") || message.includes("junkshop") || message.includes("user type")) {
+      return "👥 **User Types on Waiz:**\n\n🏠 **Household:**\n• Browse marketplace items\n• Create collection requests\n• List recyclables for sale\n• Message junkshops\n\n🏪 **Junkshop:**\n• List recyclable items\n• Browse collection requests\n• Respond to requests\n• Set competitive prices\n• Message households\n\nBoth types can buy AND sell!";
     }
 
-    if (message.includes("image") || message.includes("photo") || message.includes("upload")) {
-      return paragraph(
-        "You can attach up to five photos when posting or editing a marketplace item. If you receive an error about missing image URLs, ensure the upload finished and the server accepted the file (see the toast message). Refresh the Marketplace page after posting so the new item appears.",
-        "/marketplace"
-      );
+    if (message.includes("image") || message.includes("photo") || message.includes("upload") || message.includes("picture")) {
+      return "📸 **Adding Photos to Listings:**\n\n• You can upload up to 5 photos per item\n• Supported formats: JPG, PNG, WebP\n• Show items clearly with good lighting\n• Include multiple angles if possible\n• Clear photos get more buyer interest!\n\nTip: If upload fails, check file size (max 30MB) and refresh the page.";
     }
 
-    if (message.includes("how") || message.includes("help") || message.includes("feature")) {
-      return paragraph(
-        "I can help you with rates, listing items, creating requests, contacting sellers, navigating the site, and providing recycling tips. Tell me what you need and I will guide you step-by-step.",
-        "/"
-      );
+    if (message.includes("how") || message.includes("help") || message.includes("feature") || message.includes("guide")) {
+      return "🤖 **I can help you with:**\n\n📊 Market rates & pricing\n📦 Listing & selling items\n📋 Creating collection requests\n💬 Messaging & contacting sellers\n🌍 Recycling tips & eco-tips\n👥 Understanding user types\n📸 Uploading photos\n❓ General Waiz features\n\nWhat would you like to know? 😊";
     }
 
     // Fallback friendly greeting
-    return "I’m Garbish, your WAIZ recycling assistant. I’m sorry, I can’t answer that question, but I can help with recycling, eco-friendly tips, and anything related to the WAIZ marketplace.";
+    return "Hi, I’m Garbish, your WAIZ recycling assistant. I’m sorry, I can’t answer that question, but I can help with recycling, eco-friendly tips, and anything related to the WAIZ marketplace.";
   }
 
 
@@ -963,7 +943,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else {
         console.log("Genkit AI not configured — responding with generic apology");
-        assistantMessage = "Sorry, I don’t have an answer to that.";
+        assistantMessage = "Hi. Sorry, I don’t have an answer to that.";
       }
 
       res.json({ message: assistantMessage });
