@@ -118,8 +118,9 @@ export default function MessagesPage() {
           setConversationMessages(msgList);
 
           // 🔧 Mark messages as read using stable Firebase pattern
-          if (currentUser?.id && selectedConversationId) {
-            markMessagesAsReadFromLib(selectedConversationId, currentUser.id).catch((err) => {
+          // Only mark messages where currentUser is the receiver
+          if (currentUser?.id && selectedConversationId && selectedUser) {
+            markMessagesAsReadFromLib(selectedConversationId, currentUser.id, selectedUser).catch((err) => {
               console.warn('⚠️ Failed to mark messages as read (non-critical):', err);
             });
           }

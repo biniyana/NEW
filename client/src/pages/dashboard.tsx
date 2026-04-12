@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
   const [activeTab, setActiveTab] = useState("home");
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
 
   const { data: messages = [], refetch: refetchMessages } = useQuery<Message[]>({
     queryKey: ["/api/messages"],
@@ -37,22 +38,49 @@ export default function Dashboard() {
       return res.json();
     },
     enabled: !!currentUser?.id,
-    staleTime: 1000 * 10, // Refresh every 10 seconds for more responsive updates
-    refetchInterval: 1000 * 15, // Refetch every 15 seconds for background updates
+    staleTime: 1000 * 5, // 5 seconds - data becomes stale faster
+    refetchInterval: 1000 * 5, // Refetch every 5 seconds for real-time updates
   });
 
   // Real-time Firebase listener for immediate notification updates
+  // 🟢 Combined listener: refetch API messages AND check Firebase for unread
   useEffect(() => {
     if (!currentUser?.id) return;
 
-    const messagesRef = ref(database, "messages");
+    const conversationsRef = ref(database, "conversations");
     
     const unsubscribe = onValue(
-      messagesRef,
+      conversationsRef,
       (snapshot) => {
+        console.log('🔄 [Dashboard] Conversations changed, refetching messages...');
+        
+        // 1. Refetch API messages
+        refetchMessages();
+        
+        // 2. Also check Firebase directly for unread messages
         const data = snapshot.val();
         if (data) {
-          refetchMessages();
+          let hasAnyUnread = false;
+          
+          Object.entries(data).forEach(([, conv]: [string, any]) => {
+            if (conv.messages) {
+              Object.values(conv.messages).forEach((msg: any) => {
+                if (msg.receiverId === currentUser.id && msg.read === false) {
+                  hasAnyUnread = true;
+                }
+              });
+            }
+          });
+
+          console.log('🟢 [Dashboard Firebase] Conversations unread check:', {
+            currentUserId: currentUser.id,
+            hasAnyUnread,
+          });
+
+          // Set hasUnread based on Firebase data for immediate feedback
+          if (hasAnyUnread) {
+            setHasUnread(true);
+          }
         }
       },
       (error) => {
@@ -63,6 +91,27 @@ export default function Dashboard() {
     return () => unsubscribe();
   }, [currentUser?.id, refetchMessages]);
 
+  // 🟢 Calculate unread notification dot from existing messages state
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const hasUnreadMessages = messages.some(
+      (msg) =>
+        msg.receiverId === currentUser.id &&
+        String(msg.read) !== "true"
+    );
+
+    console.log('🟢 [Dashboard] Unread check:', {
+      currentUserId: currentUser.id,
+      totalMessages: messages.length,
+      unreadMessages: messages.filter(msg => msg.receiverId === currentUser.id && String(msg.read) !== "true"),
+      hasUnreadMessages,
+      messagesArray: messages,
+    });
+
+    setHasUnread(hasUnreadMessages);
+  }, [messages, currentUser]);
+
   const unreadMessagesCount = messages.reduce((count, msg) => {
     if (!currentUser) return count;
     if (msg.receiverId === currentUser.id && String(msg.read) !== "true") {
@@ -70,6 +119,15 @@ export default function Dashboard() {
     }
     return count;
   }, 0);
+
+  // 🔄 Ensure hasUnread matches unreadMessagesCount for consistency
+  useEffect(() => {
+    const shouldHaveUnread = unreadMessagesCount > 0;
+    if (hasUnread !== shouldHaveUnread) {
+      console.log('🔄 [Dashboard] Syncing hasUnread with unreadMessagesCount:', { unreadMessagesCount, hasUnread, shouldHaveUnread });
+      setHasUnread(shouldHaveUnread);
+    }
+  }, [unreadMessagesCount, hasUnread]);
 
   // sync activeTab from query param when location changes (e.g. via chatbot link)
   useEffect(() => {
@@ -221,11 +279,11 @@ export default function Dashboard() {
                 <span className="flex items-center gap-3 relative">
                   <MessageCircle className="w-4 h-4" />
                   Messages
-                  {unreadMessagesCount > 0 && (
+                  {hasUnread && (
                     <span 
                       className="absolute -top-1 -right-2 w-3 h-3 bg-green-500 rounded-full animate-pulse"
                       data-testid="notification-dot"
-                      title={`${unreadMessagesCount} unread message${unreadMessagesCount > 1 ? 's' : ''}`}
+                      title="Unread messages"
                     />
                   )}
                 </span>
@@ -420,10 +478,14 @@ function DashboardHome({ currentUser }: { currentUser: UserType }) {
               <div className="rounded-b-lg overflow-hidden">
                 <JunkshopsMap
                   junkshops={junkshops}
-                  userLocation={currentUser && currentUser.latitude ? { 
-                    latitude: typeof currentUser.latitude === "string" ? Number(currentUser.latitude) : currentUser.latitude,
-                    longitude: typeof currentUser.longitude === "string" ? Number(currentUser.longitude) : currentUser.longitude,
-                  } : undefined}
+                  userLocation={
+                    currentUser && currentUser.latitude !== null && currentUser.latitude !== undefined && currentUser.longitude !== null && currentUser.longitude !== undefined
+                      ? { 
+                          latitude: typeof currentUser.latitude === "string" ? Number(currentUser.latitude) : currentUser.latitude,
+                          longitude: typeof currentUser.longitude === "string" ? Number(currentUser.longitude) : currentUser.longitude,
+                        }
+                      : undefined
+                  }
                   showAll={isHousehold}
                 />
               </div>

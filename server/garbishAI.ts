@@ -108,7 +108,7 @@ To make recycling more efficient, accessible, and environmentally friendly.
 
 /* ============== RESPONSE TEMPLATES ============== */
 
-export const REFUSAL_RESPONSE = "I'm Garbish, your WAIZ recycling assistant. I'm sorry, I can't answer that question, but I can help with recycling, eco-friendly tips, and anything related to the WAIZ marketplace.";
+export const REFUSAL_RESPONSE = "Hi, I'm Garbish, your WAIZ recycling assistant. I'm sorry, I can't assist you with that question, but I can help with recycling, eco-friendly tips, and anything related to the WAIZ marketplace.";
 export const PRICE_RESPONSE = "Recycling prices may vary depending on the junk shop and location. For the most accurate and current rates, please check local junk shops or listings within the WAIZ marketplace.";
 export const ERROR_RESPONSE = "Sorry, I couldn't process that right now. Please try again with a question about recycling or WAIZ.";
 

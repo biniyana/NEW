@@ -271,11 +271,13 @@ export const updateConversationMetadata = async (
 
 /**
  * 🔧 Mark messages as read - Efficient batch update
- * Marks all unread messages from a specific sender as read
+ * Marks all unread messages received FROM a specific sender by currentUser
+ * Only marks messages where: receiverId === currentUserId && senderId === senderId && !read
  */
 export const markMessagesAsRead = async (
   conversationId: string,
-  senderId: string
+  currentUserId: string,
+  senderId?: string
 ): Promise<void> => {
   try {
     const messagesRef = ref(database, `conversations/${conversationId}/messages`);
@@ -290,9 +292,11 @@ export const markMessagesAsRead = async (
     let updateCount = 0;
 
     // Efficiently batch all unread message updates
+    // Mark messages where currentUser is the receiver and messages are unread
     Object.keys(messages).forEach((messageId) => {
       const message = messages[messageId];
-      if (message.senderId === senderId && !message.read) {
+      // Mark as read if: currentUser is receiver, message is unread, and optionally from specific sender
+      if (message.receiverId === currentUserId && !message.read && (!senderId || message.senderId === senderId)) {
         updates[`${messageId}/read`] = true;
         updateCount++;
       }
@@ -300,7 +304,7 @@ export const markMessagesAsRead = async (
 
     if (updateCount > 0) {
       await update(messagesRef, updates);
-      console.log(`✅ Marked ${updateCount} messages as read in ${conversationId}`);
+      console.log(`✅ Marked ${updateCount} messages as read in ${conversationId} for user ${currentUserId}`);
     }
   } catch (error) {
     console.error("Error marking messages as read:", error);

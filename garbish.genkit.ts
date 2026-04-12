@@ -18,7 +18,7 @@ If asked about current recycling prices and you have no real-time data, say:
 
 NEVER answer questions outside recycling or the WAIZ platform. 
 If a question is out of scope, respond:
-"I'm Garbish, the WAIZ recycling assistant. I can help with questions about recycling, eco-friendly practices, and how to use the WAIZ marketplace. Please ask something related to recycling or the WAIZ platform."
+"Hi, I'm Garbish, the WAIZ recycling assistant. I can help with questions about recycling, eco-friendly practices, and how to use the WAIZ marketplace. Please ask something related to recycling or the WAIZ platform."
 `;
 
 const REFUSAL_RESPONSE = `I'm Garbish, the WAIZ recycling assistant. I can help with questions about recycling, eco-friendly practices, and how to use the WAIZ marketplace. Please ask something related to recycling or the WAIZ platform.`;
@@ -66,40 +66,43 @@ const outputSchema = z.object({
   type: z.enum(['platform_question', 'recycling_question', 'price_question', 'out_of_scope']),
 });
 
-async function garbishFlow({ question }: { question: string }) {
-  const type = classifyQuestion(question);
+export const garbishFlow = defineFlow(
+  {
+    name: 'garbishFlow',
+    inputSchema,
+    outputSchema,
+  },
+  async ({ question }: { question: string }) => {
+    const type = classifyQuestion(question);
 
-  if (type === 'out_of_scope') {
-    return { answer: REFUSAL_RESPONSE, type };
+    if (type === 'out_of_scope') {
+      return { answer: REFUSAL_RESPONSE, type };
+    }
+
+    if (type === 'price_question') {
+      return { answer: PRICE_RESPONSE, type };
+    }
+
+    // Setup AI client (same as in garbishAI.ts)
+    const ai = genkit({
+      plugins: [
+        googleAI({
+          apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
+        })
+      ],
+      model: 'googleai/gemini-2.0-flash'
+    });
+
+    const response = await ai.generate({
+      prompt: `${SYSTEM_PROMPT}\n\nUser Question:\n${question}`,
+      config: { temperature: 0.3 }
+    });
+
+    const text = response.text?.trim() || "I don't have that information.";
+
+    return {
+      answer: text,
+      type,
+    };
   }
-
-  if (type === 'price_question') {
-    return { answer: PRICE_RESPONSE, type };
-  }
-
-  // Setup AI client (same as in garbishAI.ts)
-  const ai = genkit({
-    plugins: [
-      googleAI({
-        apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
-      })
-    ],
-    model: 'googleai/gemini-2.0-flash'
-  });
-
-  const response = await ai.generate({
-    prompt: `${SYSTEM_PROMPT}\n\nUser Question:\n${question}`,
-    config: { temperature: 0.3 }
-  });
-
-  const text = response.text?.trim() || "I don't have that information.";
-
-  return {
-    answer: text,
-    type,
-  };
-}
-
-garbishFlow.inputSchema = inputSchema;
-garbishFlow.outputSchema = outputSchema;
-export default garbishFlow;
+);
