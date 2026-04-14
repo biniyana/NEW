@@ -903,6 +903,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return "📸 **Adding Photos to Listings:**\n\n• You can upload up to 5 photos per item\n• Supported formats: JPG, PNG, WebP\n• Show items clearly with good lighting\n• Include multiple angles if possible\n• Clear photos get more buyer interest!\n\nTip: If upload fails, check file size (max 30MB) and refresh the page.";
     }
 
+    if ((message.includes("what") && message.includes("waiz")) || message.includes("about waiz") || message.includes("what's waiz")) {
+      return "Hi, I'm Garbish, the WAIZ recycling assistant. I can help with questions about recycling, eco-friendly practices, and how to use the WAIZ marketplace. Please ask something related to recycling or the WAIZ platform.";
+    }
+
+    if ((message.includes("how") && message.includes("waiz")) || message.includes("how to use waiz") || message.includes("getting started")) {
+      if (message.includes("waiz")) {
+        return "📚 **Getting Started with WAIZ:**\n1. Sign up as Household or Junkshop\n2. Complete your profile with address & contact info\n3. Browse marketplace or create listings\n4. For pickups: Create a collection request\n5. Connect with other users via messaging\n6. Complete transactions safely!\nNeed help with a specific feature? Just ask!";
+      }
+    }
+
+    if (message.includes("waiz") && (message.includes("feature") || message.includes("can i") || message.includes("features"))) {
+      return "✨ **WAIZ Features:**\n📦 **Marketplace** - Buy/sell recyclables with photos & descriptions\n📋 **Collection Requests** - Request pickups from junkshops\n💬 **Messaging** - Chat with buyers/sellers\n💰 **Rates** - View current recycling prices\n👤 **Profile** - Manage your account & listings\n🗺️ **Junkshop Locator** - Find nearby junkshops\nWhich feature would you like to learn more about?";
+    }
+
     if (message.includes("how") || message.includes("help") || message.includes("feature") || message.includes("guide")) {
       return "🤖 **I can help you with:**\n\n📊 Market rates & pricing\n📦 Listing & selling items\n📋 Creating collection requests\n💬 Messaging & contacting sellers\n🌍 Recycling tips & eco-tips\n👥 Understanding user types\n📸 Uploading photos\n❓ General Waiz features\n\nWhat would you like to know? 😊";
     }

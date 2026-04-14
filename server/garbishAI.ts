@@ -156,18 +156,21 @@ function classifyQuestion(question: string): ChatbotTopic {
     return 'out_of_scope';
   }
 
+  // Check for generic "what is waiz" questions - should not use AI
+  if (normalized.match(/(what is waiz|what's waiz|tell me about waiz|waiz is what)/)) {
+    return 'out_of_scope';
+  }
+
   const contains = (terms: string[]): boolean => 
     terms.some((t) => normalized.includes(t));
 
-  // Enhanced Platform Keywords
+  // Enhanced Platform Keywords - simplified and focused
   const platformKeywords = [
-    'waiz', 'upload', 'uploading', 'listing', 'listings', 'marketplace',
-    'sell', 'selling', 'buy', 'buying', 'account', 'login', 'signin',
-    'sign in', 'signup', 'sign up', 'register', 'registration', 'transaction',
-    'transactions', 'request', 'requests', 'collection', 'junkshop', 'junk shop',
-    'junk shops', 'dashboard', 'profile', 'message', 'messages', 'messaging',
-    'rate', 'rates', 'how to', 'how do i', 'how can i', 'feature', 'features',
-    'member', 'user account'
+    'how to', 'how do', 'how can', 'upload', 'uploading', 'listing', 'listings',
+    'marketplace', 'sell', 'selling', 'buy', 'buying', 'account', 'login',
+    'signup', 'register', 'transaction', 'request', 'requests', 'collection',
+    'junkshop', 'junk shop', 'dashboard', 'profile', 'message', 'messages',
+    'feature', 'features', 'start', 'getting started', 'create', 'add item'
   ];
 
   // Enhanced Recycling Keywords

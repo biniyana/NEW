@@ -21,37 +21,42 @@ If a question is out of scope, respond:
 "Hi, I'm Garbish, the WAIZ recycling assistant. I can help with questions about recycling, eco-friendly practices, and how to use the WAIZ marketplace. Please ask something related to recycling or the WAIZ platform."
 `;
 
-const REFUSAL_RESPONSE = `I'm Garbish, the WAIZ recycling assistant. I can help with questions about recycling, eco-friendly practices, and how to use the WAIZ marketplace. Please ask something related to recycling or the WAIZ platform.`;
+const REFUSAL_RESPONSE = `Hi, I'm Garbish, the WAIZ recycling assistant. I can help with questions about recycling, eco-friendly practices, and how to use the WAIZ marketplace. Please ask something related to recycling or the WAIZ platform.`;
 
 const PRICE_RESPONSE = `Recycling prices may vary depending on the junk shop and location. For the most accurate and current rates, please check local junk shops or listings within the WAIZ marketplace.`;
 
 // Classification function for user questions
 function classifyQuestion(question: string): GarbishQuestionType {
-  const q = question.toLowerCase();
+  const q = question.toLowerCase().trim();
 
-  // Strict price-related: must mention price/rate/cost and a recycling material or junk shop
+  // FIRST: Check for generic "what is waiz" questions - treat as out_of_scope
+  if (q.match(/(what is waiz|what's waiz|tell me about waiz|waiz is what)/)) {
+    return 'out_of_scope';
+  }
+
+  // SECOND: Check for price-related questions with clear context
   if (
-    /(price|rate|cost|how much|per kilo|per kilogram|per kg|current price|market price)/.test(q) &&
-    /(plastic|metal|paper|glass|bottle|can|carton|junk shop|recyclable)/.test(q)
+    q.match(/(price|rate|cost|how much|per kilo|per kilogram|per kg|market price)/) &&
+    q.match(/(plastic|metal|paper|glass|bottle|newspaper|cardboard|aluminum|steel|wire|recyclable)/)
   ) {
     return 'price_question';
   }
 
-  // Strict platform-related: must mention WAIZ or a clear platform action
+  // THIRD: Check for platform-specific questions (how to use WAIZ features)
   if (
-    /(waiz|upload(ing)?|marketplace|sell(ing)?|buy(ing)?|account|listing|transaction|junk shop|profile|dashboard|login|register|signup|sign up|how.*use.*waiz)/.test(q)
+    q.match(/(how.*waiz|waiz.*(work|feature|use|start)|upload|listing|marketplace|collection request|transaction|dashboard|profile|message)/i)
   ) {
     return 'platform_question';
   }
 
-  // Strict recycling knowledge: must mention recycling, eco, waste, or specific materials
+  // FOURTH: Check for recycling/eco knowledge questions
   if (
-    /(recycle|recycling|eco[- ]?friendly|waste segregation|waste|sustainability|environment|how to recycle|segregate|recyclable material|plastic|metal|paper|glass|compost|reduce|reuse|environmental|junk shop)/.test(q)
+    q.match(/(recycl|eco|waste|segregat|sustainab|environment|compost|landfill|reduce|reuse|upcycle|green|sustainable)/i)
   ) {
     return 'recycling_question';
   }
 
-  // Everything else is out_of_scope
+  // FIFTH: Default to out_of_scope for anything else
   return 'out_of_scope';
 }
 
