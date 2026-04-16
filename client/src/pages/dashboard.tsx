@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Recycle, Home, Package, FileText, MessageCircle, DollarSign, User, LogOut } from "lucide-react";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Recycle, Home, Package, FileText, MessageCircle, DollarSign, User, LogOut, Menu } from "lucide-react";
 import { User as UserType, Message } from "@/models";
 import { UserController, AuthController, MessageController } from "@/controllers";
 import MarketplacePage from "@/pages/marketplace";
@@ -29,6 +30,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("home");
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const { data: messages = [], refetch: refetchMessages } = useQuery<Message[]>({
     queryKey: ["/api/messages"],
@@ -214,24 +216,42 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-card border-b border-card-border">
-        <div className="px-6 py-4">
+        <div className="px-4 md:px-6 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-lg overflow-hidden flex items-center justify-center">
-                <img src="/waiz logo.png" alt="Waiz logo" className="w-10 h-10 object-cover" />
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetTrigger asChild className="md:hidden">
+                  <Button variant="ghost" size="icon">
+                    <Menu className="w-5 h-5" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-64 p-0">
+                  <nav className="space-y-2 p-6 mt-12">
+                    <SidebarNav activeTab={activeTab} setActiveTab={setActiveTab} setMobileMenuOpen={setMobileMenuOpen} hasUnread={hasUnread} isHousehold={isHousehold} />
+                  </nav>
+                </SheetContent>
+              </Sheet>
+              <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg overflow-hidden flex items-center justify-center">
+                <img src="/waiz logo.png" alt="Waiz logo" className="w-8 md:w-10 h-8 md:h-10 object-cover" />
               </div>
-              <h1 className="text-xl font-bold text-foreground">Waiz</h1>
+              <h1 className="text-lg md:text-xl font-bold text-foreground">Waiz</h1>
             </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground" data-testid="text-username">
+            <div className="flex items-center gap-2 md:gap-4">
+              <span className="hidden sm:inline text-sm text-muted-foreground" data-testid="text-username">
                 👋 {currentUser.name}
               </span>
-              <Badge variant="secondary" data-testid="badge-usertype">
+              <Badge variant="secondary" className="hidden sm:inline-flex" data-testid="badge-usertype">
                 {isHousehold ? "🏠 Household" : "🏪 Junkshop"}
               </Badge>
-              <Button variant="ghost" size="sm" onClick={confirmLogout} data-testid="button-logout">
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
+              <div className="sm:hidden text-xs text-muted-foreground flex items-center gap-2">
+                <div className="flex flex-col items-end">
+                  <span>{currentUser.name}</span>
+                  <span className="text-xs">{isHousehold ? "🏠 Household" : "🏪 Junkshop"}</span>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={confirmLogout} data-testid="button-logout" className="text-xs md:text-sm">
+                <LogOut className="w-4 h-4 mr-1 md:mr-2" />
+                <span className="hidden sm:inline">Logout</span>
               </Button>
             </div>
           </div>
@@ -239,79 +259,15 @@ export default function Dashboard() {
       </header>
 
       <div className="flex">
-        {/* Sidebar */}
-        <aside className="w-64 bg-card border-r border-card-border p-6">
+        {/* Sidebar - Desktop only */}
+        <aside className="hidden md:block w-64 bg-card border-r border-card-border p-6 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto">
           <nav className="space-y-2">
-            <Button
-              variant={activeTab === "home" ? "default" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("home")}
-              data-testid="button-nav-home"
-            >
-              <Home className="w-4 h-4 mr-3" />
-              Home Feed
-            </Button>
-            <Button
-              variant={activeTab === "items" ? "default" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("items")}
-              data-testid="button-nav-items"
-            >
-              <Package className="w-4 h-4 mr-3" />
-              Marketplace
-            </Button>
-            <Button
-              variant={activeTab === "requests" ? "default" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("requests")}
-              data-testid="button-nav-requests"
-            >
-              <FileText className="w-4 h-4 mr-3" />
-              {isHousehold ? "My Requests" : "Collection Requests"}
-            </Button>
-            <Button
-              variant={activeTab === "messages" ? "default" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("messages")}
-              data-testid="button-nav-messages"
-            >
-              <div className="flex items-center justify-between w-full gap-3">
-                <span className="flex items-center gap-3 relative">
-                  <MessageCircle className="w-4 h-4" />
-                  Messages
-                  {hasUnread && (
-                    <span 
-                      className="absolute -top-1 -right-2 w-3 h-3 bg-green-500 rounded-full animate-pulse"
-                      data-testid="notification-dot"
-                      title="Unread messages"
-                    />
-                  )}
-                </span>
-              </div>
-            </Button>
-            <Button
-              variant={activeTab === "rates" ? "default" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("rates")}
-              data-testid="button-nav-rates"
-            >
-              <DollarSign className="w-4 h-4 mr-3" />
-              Rate List
-            </Button>
-            <Button
-              variant={activeTab === "profile" ? "default" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("profile")}
-              data-testid="button-nav-profile"
-            >
-              <User className="w-4 h-4 mr-3" />
-              Profile
-            </Button>
+            <SidebarNav activeTab={activeTab} setActiveTab={setActiveTab} setMobileMenuOpen={setMobileMenuOpen} hasUnread={hasUnread} isHousehold={isHousehold} />
           </nav>
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-4 md:p-6">
           {activeTab === "home" && <DashboardHome currentUser={currentUser} />}
           {activeTab === "items" && <MarketplacePage onNavigateToMessages={() => setActiveTab("messages")} />}
           {activeTab === "requests" && <RequestsPage />}
@@ -496,6 +452,91 @@ function DashboardHome({ currentUser }: { currentUser: UserType }) {
 
 
     </div>
+  );
+}
+
+interface SidebarNavProps {
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+  setMobileMenuOpen: (open: boolean) => void;
+  hasUnread: boolean;
+  isHousehold: boolean;
+}
+
+function SidebarNav({ activeTab, setActiveTab, setMobileMenuOpen, hasUnread, isHousehold }: SidebarNavProps) {
+  const handleTabClick = (tab: string) => {
+    setActiveTab(tab);
+    setMobileMenuOpen(false);
+  };
+
+  return (
+    <>
+      <Button
+        variant={activeTab === "home" ? "default" : "ghost"}
+        className="w-full justify-start"
+        onClick={() => handleTabClick("home")}
+        data-testid="button-nav-home"
+      >
+        <Home className="w-4 h-4 mr-3" />
+        Home Feed
+      </Button>
+      <Button
+        variant={activeTab === "items" ? "default" : "ghost"}
+        className="w-full justify-start"
+        onClick={() => handleTabClick("items")}
+        data-testid="button-nav-items"
+      >
+        <Package className="w-4 h-4 mr-3" />
+        Marketplace
+      </Button>
+      <Button
+        variant={activeTab === "requests" ? "default" : "ghost"}
+        className="w-full justify-start"
+        onClick={() => handleTabClick("requests")}
+        data-testid="button-nav-requests"
+      >
+        <FileText className="w-4 h-4 mr-3" />
+        {isHousehold ? "My Requests" : "Collection Requests"}
+      </Button>
+      <Button
+        variant={activeTab === "messages" ? "default" : "ghost"}
+        className="w-full justify-start"
+        onClick={() => handleTabClick("messages")}
+        data-testid="button-nav-messages"
+      >
+        <div className="flex items-center justify-between w-full gap-3">
+          <span className="flex items-center gap-3 relative">
+            <MessageCircle className="w-4 h-4" />
+            Messages
+            {hasUnread && (
+              <span 
+                className="absolute -top-1 -right-2 w-3 h-3 bg-green-500 rounded-full animate-pulse"
+                data-testid="notification-dot"
+                title="Unread messages"
+              />
+            )}
+          </span>
+        </div>
+      </Button>
+      <Button
+        variant={activeTab === "rates" ? "default" : "ghost"}
+        className="w-full justify-start"
+        onClick={() => handleTabClick("rates")}
+        data-testid="button-nav-rates"
+      >
+        <DollarSign className="w-4 h-4 mr-3" />
+        Rate List
+      </Button>
+      <Button
+        variant={activeTab === "profile" ? "default" : "ghost"}
+        className="w-full justify-start"
+        onClick={() => handleTabClick("profile")}
+        data-testid="button-nav-profile"
+      >
+        <User className="w-4 h-4 mr-3" />
+        Profile
+      </Button>
+    </>
   );
 }
 
