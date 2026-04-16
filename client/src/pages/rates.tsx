@@ -365,7 +365,13 @@ export default function RatesPage() {
                       <CardContent>
                         {selectedShop?.rates && selectedShop.rates.length > 0 ? (
                           <div className="space-y-2">
-                            {selectedShop.rates.map((rate: Rate) => (
+                            {selectedShop.rates
+                              .sort((a: Rate, b: Rate) => {
+                                const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                                const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                                return timeB - timeA;
+                              })
+                              .map((rate: Rate) => (
                               <div key={rate.id} className="flex items-center justify-between p-2 border rounded">
                                 <div>
                                   <div className="text-sm font-medium">{rate.material}</div>
@@ -411,7 +417,13 @@ export default function RatesPage() {
                         <div className="p-3 rounded-md bg-muted border border-muted-foreground/30">
                           <p className="text-xs font-semibold text-muted-foreground mb-2">Your Current Rates:</p>
                           <div className="space-y-1 max-h-40 overflow-y-auto">
-                            {rates.map((rate) => (
+                            {rates
+                              .sort((a, b) => {
+                                const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                                const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                                return timeB - timeA;
+                              })
+                              .map((rate) => (
                               <div key={rate.id} className="text-xs text-muted-foreground flex justify-between">
                                 <span>{rate.material} ({rate.category})</span>
                                 <span className="font-semibold">{rate.price}/{rate.unit}</span>
@@ -493,7 +505,13 @@ export default function RatesPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {rates.map((rate) => (
+                {rates
+                  .sort((a, b) => {
+                    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                    return timeB - timeA;
+                  })
+                  .map((rate) => (
                   <div
                     key={rate.id}
                     className="flex items-center justify-between p-4 rounded-lg hover-elevate bg-card border border-card-border"

@@ -23,6 +23,69 @@ const SUGGESTED_PROMPTS = [
 
 export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [position, setPosition] = useState<{ bottom?: number; right?: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const buttonRef = useRef<HTMLDivElement>(null);
+
+  // Initialize position from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("chatbotPosition");
+    if (saved) {
+      try {
+        setPosition(JSON.parse(saved));
+      } catch (e) {
+        setPosition({ bottom: 24, right: 24 });
+      }
+    } else {
+      setPosition({ bottom: 24, right: 24 });
+    }
+  }, []);
+
+  // Save position to localStorage when it changes
+  useEffect(() => {
+    if (position) {
+      localStorage.setItem("chatbotPosition", JSON.stringify(position));
+    }
+  }, [position]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!buttonRef.current) return;
+    setIsDragging(true);
+    const rect = buttonRef.current.getBoundingClientRect();
+    setDragOffset({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isDragging) return;
+    const buttonCenterX = e.clientX - dragOffset.x;
+    const buttonCenterY = e.clientY - dragOffset.y;
+    const newRight = Math.max(0, Math.min(window.innerWidth - buttonCenterX - 32, window.innerWidth - 64));
+    const newBottom = Math.max(0, Math.min(window.innerHeight - buttonCenterY - 32, window.innerHeight - 64));
+    setPosition({
+      right: newRight,
+      bottom: newBottom,
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // Add event listeners for dragging
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+      return () => {
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+      };
+    }
+  }, [isDragging, dragOffset]);
 
   // Close chatbot when tab changes
   useEffect(() => {
@@ -213,7 +276,14 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
   if (!currentUser) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 font-sans">
+    <div
+      ref={buttonRef}
+      className={`fixed z-40 font-sans ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
+      style={{
+        right: position?.right !== undefined ? `${position.right}px` : "24px",
+        bottom: position?.bottom !== undefined ? `${position.bottom}px` : "24px",
+      }}
+    >
       {isOpen ? (
         <div className="bg-card border border-border rounded-xl shadow-2xl w-96 flex flex-col h-[500px] overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
           {/* Header */}
@@ -380,10 +450,11 @@ export function ChatbotBubble({ currentUser, activeTab }: ChatbotBubbleProps) {
       ) : (
         <Button
           onClick={() => setIsOpen(true)}
+          onMouseDown={handleMouseDown}
           className="rounded-full w-16 h-16 shadow-2xl animate-in fade-in zoom-in-75 duration-500 hover:scale-110 transition-transform"
           size="icon"
           data-testid="button-open-garbish"
-          title="Open Garbish Assistant"
+          title="Click to open • Drag to move"
         >
           <div className="relative flex flex-col items-center justify-center gap-1">
             <MessageCircle className="w-6 h-6" />

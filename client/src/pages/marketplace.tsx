@@ -211,10 +211,10 @@ export default function MarketplacePage({ onNavigateToMessages }: MarketplacePag
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {items
             .sort((a, b) => {
-              // User's posts first, then others
-              const aIsOwner = authUid && a.sellerId === authUid ? 0 : 1;
-              const bIsOwner = authUid && b.sellerId === authUid ? 0 : 1;
-              return aIsOwner - bIsOwner;
+              // Sort by most recent first (descending by createdAt)
+              const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+              const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+              return bTime - aTime;
             })
             .map((item) => (
             <ItemCard

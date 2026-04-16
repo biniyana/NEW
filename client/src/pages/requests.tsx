@@ -137,7 +137,13 @@ export default function RequestsPage() {
         <></>
       ) : (
         <div className="space-y-4">
-          {visibleRequests.map((request) => (
+          {visibleRequests
+            .sort((a, b) => {
+              const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+              const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+              return timeB - timeA;
+            })
+            .map((request) => (
             <RequestCard key={request.id} request={request} isHousehold={isHousehold} />
           ))}
         </div>
