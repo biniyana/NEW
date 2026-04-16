@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Request as RequestType, User } from "@/models";
 import { Plus, Calendar, MapPin, Image as ImageIcon, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +17,7 @@ import { database } from "@/firebase/firebase";
 
 export default function RequestsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("pending");
   const [requests, setRequests] = useState<RequestType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -117,7 +119,7 @@ export default function RequestsPage() {
         )} 
       </div>
 
-      {/* Requests List */}
+      {/* Requests List with Tabs */}
       {isLoading ? (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
@@ -136,17 +138,60 @@ export default function RequestsPage() {
       ) : visibleRequests.length === 0 ? (
         <></>
       ) : (
-        <div className="space-y-4">
-          {visibleRequests
-            .sort((a, b) => {
-              const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-              const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-              return timeB - timeA;
-            })
-            .map((request) => (
-            <RequestCard key={request.id} request={request} isHousehold={isHousehold} />
-          ))}
-        </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="pending" className="flex items-center gap-2">
+              Pending
+              <Badge variant="secondary" className="ml-2">
+                {visibleRequests.filter(r => r.status === "Pending").length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="completed" className="flex items-center gap-2">
+              Completed
+              <Badge variant="secondary" className="ml-2">
+                {visibleRequests.filter(r => r.status === "Completed").length}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="pending" className="space-y-4">
+            {visibleRequests.filter(r => r.status === "Pending").length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No pending requests</p>
+              </div>
+            ) : (
+              visibleRequests
+                .filter(r => r.status === "Pending")
+                .sort((a, b) => {
+                  const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                  const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                  return timeB - timeA;
+                })
+                .map((request) => (
+                  <RequestCard key={request.id} request={request} isHousehold={isHousehold} />
+                ))
+            )}
+          </TabsContent>
+
+          <TabsContent value="completed" className="space-y-4">
+            {visibleRequests.filter(r => r.status === "Completed").length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No completed requests</p>
+              </div>
+            ) : (
+              visibleRequests
+                .filter(r => r.status === "Completed")
+                .sort((a, b) => {
+                  const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                  const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                  return timeB - timeA;
+                })
+                .map((request) => (
+                  <RequestCard key={request.id} request={request} isHousehold={isHousehold} />
+                ))
+            )}
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );

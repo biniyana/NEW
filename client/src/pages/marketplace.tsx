@@ -208,25 +208,35 @@ export default function MarketplacePage({ onNavigateToMessages }: MarketplacePag
 
       ) : (
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {items
+        <div className="space-y-6">
+          {Object.entries(
+            items.reduce((sellers: Record<string, Item[]>, item) => {
+              if (!sellers[item.sellerId]) {
+                sellers[item.sellerId] = [];
+              }
+              sellers[item.sellerId].push(item);
+              return sellers;
+            }, {})
+          )
             .sort((a, b) => {
-              // Sort by most recent first (descending by createdAt)
-              const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-              const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+              // Sort sellers by most recent item first
+              const aTime = Math.max(...a[1].map(it => (it.createdAt ? new Date(it.createdAt).getTime() : 0)));
+              const bTime = Math.max(...b[1].map(it => (it.createdAt ? new Date(it.createdAt).getTime() : 0)));
               return bTime - aTime;
             })
-            .map((item) => (
-            <ItemCard
-              key={item.id}
-              item={item}
-              currentUser={currentUser}
-              authUid={authUid}
-              onDeleteItem={(itemId) => setDeletingItemId(itemId)}
-              onEditItem={setEditingItem}
-              navigate={navigate}
-            />
-          ))}
+            .map(([sellerId, sellerItems]) => (
+              <SellerCard
+                key={sellerId}
+                sellerId={sellerId}
+                sellerName={sellerItems[0]?.sellerName || "Unknown"}
+                items={sellerItems}
+                currentUser={currentUser}
+                authUid={authUid}
+                onDeleteItem={(itemId) => setDeletingItemId(itemId)}
+                onEditItem={setEditingItem}
+                navigate={navigate}
+              />
+            ))}
         </div>
 
       )}
@@ -810,5 +820,157 @@ function EditItemForm({ item, onClose }: EditItemFormProps) {
         </Button>
       </form>
     </>
+  );
+}
+
+interface SellerCardProps {
+  sellerId: string;
+  sellerName: string;
+  items: Item[];
+  currentUser: User | null;
+  authUid: string | null;
+  onDeleteItem: (itemId: string) => void;
+  onEditItem: (item: Item) => void;
+  navigate?: (path: string) => void;
+}
+
+function SellerCard({ sellerId, sellerName, items, currentUser, authUid, onDeleteItem, onEditItem, navigate }: SellerCardProps) {
+  const isOwner = authUid && sellerId === authUid;
+  const { toast } = useToast();
+  const [isHandlingContact, setIsHandlingContact] = useState(false);
+  const [sellerUserType, setSellerUserType] = useState<string | null>(null);
+
+  // Fetch seller's user type to determine if prices should be hidden
+  useEffect(() => {
+    const fetchSellerUserType = async () => {
+      try {
+        const userRef = ref(database, `users/${sellerId}`);
+        const userSnapshot = await get(userRef);
+        if (userSnapshot.exists()) {
+          const userProfile = userSnapshot.val();
+          setSellerUserType(userProfile.userType || null);
+        }
+      } catch (error) {
+        console.error("Error fetching seller user type:", error);
+      }
+    };
+
+    fetchSellerUserType();
+  }, [sellerId]);
+
+  const handleContact = async () => {
+    if (!currentUser?.id || !sellerId || !navigate) {
+      toast({
+        title: "Error",
+        description: "Unable to start conversation",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsHandlingContact(true);
+    try {
+      const conversationId = await getOrCreateConversation(currentUser.id, sellerId);
+      console.log(`✅ Conversation ready: ${conversationId}`);
+      navigate(`/messages?conversationId=${conversationId}&userId=${sellerId}&userName=${encodeURIComponent(sellerName)}`);
+    } catch (error) {
+      console.error("Error creating conversation:", error);
+      toast({
+        title: "Error",
+        description: "Failed to start conversation. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsHandlingContact(false);
+    }
+  };
+
+  return (
+    <Card className={isOwner ? "border-2 border-primary/50 bg-primary/5" : ""}>
+      <CardHeader>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle className="text-xl">{sellerName}</CardTitle>
+            <Badge className="mt-2">{items.length} item{items.length !== 1 ? 's' : ''}</Badge>
+          </div>
+          {!isOwner && (
+            <Button
+              onClick={handleContact}
+              disabled={isHandlingContact}
+              size="sm"
+              className="gap-2"
+            >
+              <MessageCircle className="w-4 h-4" />
+              {isHandlingContact ? "Starting..." : "Contact"}
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        {/* Items Grid */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {items
+            .sort((a, b) => {
+              const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+              const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+              return bTime - aTime;
+            })
+            .map((item) => (
+              <div key={item.id} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                {/* Item Image */}
+                <div className="bg-muted h-32 flex items-center justify-center relative group">
+                  {item.imageUrl ? (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.title}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-3xl">{categoryEmojis[item.category] || "📦"}</span>
+                  )}
+                  {isOwner && (
+                    <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        size="icon"
+                        variant="secondary"
+                        className="h-8 w-8"
+                        onClick={() => onEditItem(item)}
+                      >
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        className="h-8 w-8"
+                        onClick={() => onDeleteItem(item.id)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Item Info */}
+                <div className="p-3">
+                  <div className="flex justify-between items-start gap-2 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-sm truncate">{item.title}</h4>
+                      <Badge variant="outline" className="text-xs mt-1">{item.category}</Badge>
+                    </div>
+                    {isOwner && <Badge className="bg-green-500 hover:bg-green-600 text-xs flex-shrink-0">My Post</Badge>}
+                  </div>
+                  {sellerUserType !== "household" && (
+                    <p className="text-lg font-bold text-primary">{item.price}</p>
+                  )}
+                  {item.description && (
+                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{item.description}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
