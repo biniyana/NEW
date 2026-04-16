@@ -27,10 +27,22 @@ const TransactionAnalytics = lazy(() => import("@/components/TransactionAnalytic
 export default function Dashboard() {
   const [location, setLocation] = useLocation();
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
-  const [activeTab, setActiveTab] = useState("home");
+  const [activeTab, setActiveTab] = useState(() => {
+    // Initialize from localStorage, default to "home"
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("dashboardActiveTab");
+      return saved || "home";
+    }
+    return "home";
+  });
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Save activeTab to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem("dashboardActiveTab", activeTab);
+  }, [activeTab]);
 
   const { data: messages = [], refetch: refetchMessages } = useQuery<Message[]>({
     queryKey: ["/api/messages"],

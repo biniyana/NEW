@@ -351,8 +351,6 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
     : null;
 
   const [availableItems, setAvailableItems] = useState<Array<any>>([]);
-  const [junkshops, setJunkshops] = useState<Array<any>>([]);
-  const [selectedJunkshop, setSelectedJunkshop] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -407,20 +405,7 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
       }
     );
 
-    // Fetch junkshops
-    (async () => {
-      try {
-        const usersRef = ref(database, "users");
-        const usersSnap = await get(usersRef);
-        const usersData = usersSnap.val() || {};
-        const shops = Object.values(usersData)
-          .filter((u: any) => u.userType === "junkshop" && u.profileComplete)
-          .map((u: any) => ({ ...u, id: u.id || u.uid }));
-        setJunkshops(shops);
-      } catch (e) {
-        console.error("Error fetching junkshops:", e);
-      }
-    })();
+
 
     return () => unsubscribe();
   }, [currentUser]);
@@ -439,10 +424,6 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
     }
     if (!availableItems || availableItems.length === 0) {
       toast({ title: "No items", description: "Please post at least one recyclable item before creating a request", variant: "destructive" });
-      return;
-    }
-    if (!selectedJunkshop) {
-      toast({ title: "Select junkshop", description: "Please choose a junkshop to address this request to", variant: "destructive" });
       return;
     }
     if (!formData.items.trim() || !formData.address.trim() || !formData.date.trim()) {
@@ -466,8 +447,6 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
         ...formData,
         requesterId: currentUserId,
         requesterName: currentUser.name,
-        responderId: selectedJunkshop,
-        responderName: junkshops.find(j => (j.id || j.uid) === selectedJunkshop)?.name || null,
         status: "Pending",
         createdAt: new Date().toISOString(),
       };
@@ -553,19 +532,6 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
             required
             data-testid="input-address"
           />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="junkshop">Choose Junkshop</Label>
-          <select id="junkshop" value={selectedJunkshop || ""} onChange={(e) => setSelectedJunkshop(e.target.value)} className="w-full border rounded p-2" required>
-            <option value="">Select a junkshop</option>
-            {junkshops.map(js => (
-              <option key={js.id || js.uid} value={js.id || js.uid}>{js.name} — {js.address}</option>
-            ))}
-          </select>
-          {junkshops.length === 0 && (
-            <p className="text-sm text-muted-foreground">No junkshops found yet. Ask a junkshop to complete their profile first.</p>
-          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
