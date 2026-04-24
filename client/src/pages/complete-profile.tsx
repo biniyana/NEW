@@ -11,6 +11,7 @@ import { useMutation } from "@tanstack/react-query";
 import { onAuthStateChanged, updateProfile } from "firebase/auth";
 import { ref, set } from "firebase/database";
 import { auth, database } from "@/firebase/firebase";
+import { clearNavigationState } from "@/utils/authRedirect";
 
 
 
@@ -159,6 +160,10 @@ export default function CompleteProfile() {
         longitude: data.longitude,
         profileComplete: true,
       }));
+      
+      // 🗑️ Clear navigation state before redirecting to dashboard
+      clearNavigationState();
+      
       toast({
         title: "Profile saved",
         description: "Your profile has been connected to your account.",

@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { AuthController } from "@/controllers";
 import { UserController } from "@/controllers";
+import { clearNavigationState } from "@/utils/authRedirect";
 
 // Firebase imports for Google signup
 import { signInWithPopup, sendEmailVerification } from "firebase/auth";
@@ -35,6 +36,9 @@ export default function Signup() {
       // Clear any existing session before saving new user
       // This prevents session leaks from previous logins
       UserController.removeFromLocalStorage();
+      
+      // 🗑️ Clear navigation state for fresh start
+      clearNavigationState();
       
       // New account - profile is incomplete
       const userData = {
@@ -115,6 +119,9 @@ export default function Signup() {
           profileComplete: false,
         })
       );
+
+      // 🗑️ Clear navigation state for fresh start
+      clearNavigationState();
 
       toast({
         title: "Account created!",

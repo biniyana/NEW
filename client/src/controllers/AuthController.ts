@@ -87,13 +87,28 @@ export class AuthController {
   /**
    * Logout current user - clears both Firebase auth and localStorage
    * 🔐 Security Fix: Clear localStorage BEFORE signing out to prevent session leaks
+   * 🗑️ Also clears ALL navigation state to ensure fresh dashboard on re-login
    */
   static async logout(): Promise<void> {
-    // Clear localStorage first (prevents session leaks)
+    // Clear user session first (prevents session leaks)
     localStorage.removeItem('user');
+    
+    // Clear navigation state - CRITICAL for redirect behavior fix
+    // Prevents users from being redirected to their last visited page after logout/login
+    localStorage.removeItem('dashboardActiveTab');
+    
+    // Clear any other session-related keys
+    // These keys should NOT persist across logout
+    localStorage.removeItem('routeHistory');
+    localStorage.removeItem('lastVisitedPage');
+    localStorage.removeItem('navigationStack');
+    
+    console.log('🗑️ [AuthController] All session and navigation state cleared on logout');
     
     // Sign out from Firebase
     await signOut(auth);
+    
+    console.log('🔐 [AuthController] User signed out from Firebase');
   }
 
   /**

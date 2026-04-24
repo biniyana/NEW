@@ -9,6 +9,7 @@ import { Recycle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { AuthController, UserController } from "@/controllers";
+import { clearNavigationState } from "@/utils/authRedirect";
 
 // Firebase imports for Google login
 import { signInWithPopup, sendEmailVerification } from "firebase/auth";
@@ -96,6 +97,11 @@ export default function Login() {
     },
     onSuccess: (userData: any) => {
       localStorage.setItem("user", JSON.stringify(userData));
+      
+      // 🗑️ Clear navigation state to ensure fresh dashboard on login
+      // This prevents users from being redirected to their last visited tab
+      clearNavigationState();
+      
       toast({
         title: "Login successful!",
         description: "Welcome back to Waiz",
@@ -174,6 +180,10 @@ export default function Login() {
           // Verified → access dashboard
           const userData = snapshot.val();
           localStorage.setItem("user", JSON.stringify(userData));
+          
+          // 🗑️ Clear navigation state to ensure fresh dashboard on login
+          clearNavigationState();
+          
           toast({
             title: "Login Successful!",
             description: "Welcome back to Waiz",

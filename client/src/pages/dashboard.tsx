@@ -27,22 +27,25 @@ const TransactionAnalytics = lazy(() => import("@/components/TransactionAnalytic
 export default function Dashboard() {
   const [location, setLocation] = useLocation();
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
-  const [activeTab, setActiveTab] = useState(() => {
-    // Initialize from localStorage, default to "home"
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("dashboardActiveTab");
-      return saved || "home";
-    }
-    return "home";
-  });
+  const [activeTab, setActiveTab] = useState("home");
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Save activeTab to localStorage whenever it changes
+  // 🔄 Sync activeTab from query param when location changes (e.g. via chatbot link)
+  // NOTE: We do NOT persist activeTab to localStorage to prevent users from
+  // being sent back to their last tab (e.g., marketplace) after logout/login.
+  // This ensures consistent behavior: all users ALWAYS start at home tab.
   useEffect(() => {
-    localStorage.setItem("dashboardActiveTab", activeTab);
-  }, [activeTab]);
+    const parts = location.split("?");
+    if (parts.length > 1) {
+      const params = new URLSearchParams(parts[1]);
+      const tab = params.get("tab");
+      if (tab) {
+        setActiveTab(tab);
+      }
+    }
+  }, [location]);
 
   const { data: messages = [], refetch: refetchMessages } = useQuery<Message[]>({
     queryKey: ["/api/messages"],
@@ -205,12 +208,16 @@ export default function Dashboard() {
 
   const handleLogout = async () => {
     try {
+      // 🔐 AuthController.logout() handles:
+      // - Clearing user from localStorage
+      // - Clearing navigation state (dashboardActiveTab, etc)
+      // - Signing out from Firebase
       await AuthController.logout();
     } catch (err) {
       console.warn('Logout request failed:', err);
     }
-    UserController.removeFromLocalStorage();
     setShowLogoutConfirm(false);
+    // Redirect to home page
     setLocation("/");
   };
 

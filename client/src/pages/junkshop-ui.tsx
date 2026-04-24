@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useToast } from "@/hooks/use-toast";
 import { TrendingUp, Plus, Edit2, Trash2, Clock, DollarSign, Weight, Package, Home, Settings, LogOut } from "lucide-react";
 import { User as UserType } from "@/models";
+import { AuthController } from "@/controllers";
 
 interface MaterialTransaction {
   id: string;
@@ -199,15 +200,12 @@ export default function JunkshopUI({ currentUser, onNavigate }: { currentUser: U
   const handleLogout = async () => {
     try {
       // 🔐 Security Fix: Use AuthController for proper session cleanup
-      // This ensures both Firebase auth and localStorage are cleared
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+      // This ensures both Firebase auth, localStorage, and navigation state are cleared
+      await AuthController.logout();
     } catch (err) {
-      console.warn('Logout request failed:', err);
+      console.warn('Logout failed:', err);
     }
     
-    // Clear local session - AuthController.logout() handles this
-    // but we also clear here for immediate UI feedback
-    localStorage.removeItem("user");
     setShowLogoutConfirm(false);
     
     // Redirect to home/login
