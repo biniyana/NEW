@@ -31,9 +31,14 @@ export default function Dashboard() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+<<<<<<< HEAD
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [selectedUserName, setSelectedUserName] = useState<string>("");
+=======
+  const [newMarketplaceCount, setNewMarketplaceCount] = useState(0);
+  const [newRequestsCount, setNewRequestsCount] = useState(0);
+>>>>>>> c33b4168e4892a105640d208d0e97867e280416b
 
   // 🔄 Sync activeTab from query param when location changes (e.g. via chatbot link)
   // NOTE: We do NOT persist activeTab to localStorage to prevent users from
@@ -149,6 +154,86 @@ export default function Dashboard() {
     }
   }, [unreadMessagesCount, hasUnread]);
 
+  // 🟢 Track new marketplace items (items created in last 2 hours)
+  useEffect(() => {
+    const itemsRef = ref(database, "items");
+    
+    const unsubscribe = onValue(
+      itemsRef,
+      (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          const now = Date.now();
+          const twoHoursAgo = now - (2 * 60 * 60 * 1000);
+          
+          const newItems = Object.values(data).filter((item: any) => {
+            if (!item.createdAt) return false;
+            const itemTime = new Date(item.createdAt).getTime();
+            return itemTime > twoHoursAgo;
+          });
+          
+          setNewMarketplaceCount(newItems.length);
+        }
+      },
+      (error) => {
+        console.error("Firebase items listener error:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // 🟢 Track new requests (pending requests for junkshops, or new responses for households)
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    const isHousehold = currentUser.userType === "household";
+    const requestsRef = ref(database, "requests");
+    
+    const unsubscribe = onValue(
+      requestsRef,
+      (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          let count = 0;
+          
+          if (isHousehold) {
+            // For households: count new requests with accepted status waiting for completion
+            count = Object.values(data).filter((req: any) => {
+              return req.requesterId === currentUser.id && req.status === "Accepted";
+            }).length;
+          } else {
+            // For junkshops: count pending requests
+            count = Object.values(data).filter((req: any) => {
+              return req.status === "Pending";
+            }).length;
+          }
+          
+          setNewRequestsCount(count);
+        }
+      },
+      (error) => {
+        console.error("Firebase requests listener error:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  // Clear marketplace notification when viewing items tab
+  useEffect(() => {
+    if (activeTab === "items") {
+      setNewMarketplaceCount(0);
+    }
+  }, [activeTab]);
+
+  // Clear requests notification when viewing requests tab
+  useEffect(() => {
+    if (activeTab === "requests") {
+      setNewRequestsCount(0);
+    }
+  }, [activeTab]);
+
   // sync activeTab from query param when location changes (e.g. via chatbot link)
   useEffect(() => {
     const parts = location.split("?");
@@ -261,7 +346,15 @@ export default function Dashboard() {
                 </SheetTrigger>
                 <SheetContent side="left" className="w-64 p-0">
                   <nav className="space-y-2 p-6 mt-12">
-                    <SidebarNav activeTab={activeTab} setActiveTab={setActiveTab} setMobileMenuOpen={setMobileMenuOpen} hasUnread={hasUnread} isHousehold={isHousehold} />
+                    <SidebarNav 
+                      activeTab={activeTab} 
+                      setActiveTab={setActiveTab} 
+                      setMobileMenuOpen={setMobileMenuOpen} 
+                      hasUnread={hasUnread} 
+                      isHousehold={isHousehold}
+                      newMarketplaceCount={newMarketplaceCount}
+                      newRequestsCount={newRequestsCount}
+                    />
                   </nav>
                 </SheetContent>
               </Sheet>
@@ -296,7 +389,15 @@ export default function Dashboard() {
         {/* Sidebar - Desktop only */}
         <aside className="hidden md:block w-64 bg-card border-r border-card-border p-6 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto">
           <nav className="space-y-2">
-            <SidebarNav activeTab={activeTab} setActiveTab={setActiveTab} setMobileMenuOpen={setMobileMenuOpen} hasUnread={hasUnread} isHousehold={isHousehold} />
+            <SidebarNav 
+              activeTab={activeTab} 
+              setActiveTab={setActiveTab} 
+              setMobileMenuOpen={setMobileMenuOpen} 
+              hasUnread={hasUnread} 
+              isHousehold={isHousehold}
+              newMarketplaceCount={newMarketplaceCount}
+              newRequestsCount={newRequestsCount}
+            />
           </nav>
         </aside>
 
@@ -495,9 +596,11 @@ interface SidebarNavProps {
   setMobileMenuOpen: (open: boolean) => void;
   hasUnread: boolean;
   isHousehold: boolean;
+  newMarketplaceCount: number;
+  newRequestsCount: number;
 }
 
-function SidebarNav({ activeTab, setActiveTab, setMobileMenuOpen, hasUnread, isHousehold }: SidebarNavProps) {
+function SidebarNav({ activeTab, setActiveTab, setMobileMenuOpen, hasUnread, isHousehold, newMarketplaceCount, newRequestsCount }: SidebarNavProps) {
   const handleTabClick = (tab: string) => {
     setActiveTab(tab);
     setMobileMenuOpen(false);
@@ -520,8 +623,19 @@ function SidebarNav({ activeTab, setActiveTab, setMobileMenuOpen, hasUnread, isH
         onClick={() => handleTabClick("items")}
         data-testid="button-nav-items"
       >
-        <Package className="w-4 h-4 mr-3" />
-        Marketplace
+        <div className="flex items-center justify-between w-full gap-3">
+          <span className="flex items-center gap-3 relative">
+            <Package className="w-4 h-4" />
+            Marketplace
+            {newMarketplaceCount > 0 && (
+              <span 
+                className="absolute -top-1 -right-2 w-3 h-3 bg-orange-500 rounded-full animate-pulse"
+                data-testid="notification-marketplace"
+                title="New items posted"
+              />
+            )}
+          </span>
+        </div>
       </Button>
       <Button
         variant={activeTab === "requests" ? "default" : "ghost"}
@@ -529,8 +643,19 @@ function SidebarNav({ activeTab, setActiveTab, setMobileMenuOpen, hasUnread, isH
         onClick={() => handleTabClick("requests")}
         data-testid="button-nav-requests"
       >
-        <FileText className="w-4 h-4 mr-3" />
-        {isHousehold ? "My Requests" : "Collection Requests"}
+        <div className="flex items-center justify-between w-full gap-3">
+          <span className="flex items-center gap-3 relative">
+            <FileText className="w-4 h-4" />
+            {isHousehold ? "My Requests" : "Collection Requests"}
+            {newRequestsCount > 0 && (
+              <span 
+                className="absolute -top-1 -right-2 w-3 h-3 bg-blue-500 rounded-full animate-pulse"
+                data-testid="notification-requests"
+                title={isHousehold ? "Accepted requests waiting" : "New collection requests"}
+              />
+            )}
+          </span>
+        </div>
       </Button>
       <Button
         variant={activeTab === "messages" ? "default" : "ghost"}

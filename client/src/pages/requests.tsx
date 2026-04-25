@@ -342,6 +342,18 @@ function RequestCard({ request, isHousehold }: { request: RequestType; isHouseho
             </div>
           </div>
         )}
+        {(request as any).imageUrls && Array.isArray((request as any).imageUrls) && (request as any).imageUrls.length > 0 && (
+          <div className="mt-2">
+            <div className="text-sm font-medium mb-1">Selected Images</div>
+            <div className="grid grid-cols-3 gap-2">
+              {(request as any).imageUrls.map((imageUrl: string, idx: number) => (
+                <div key={idx} className="text-xs">
+                  <img src={imageUrl} alt={`Selected ${idx + 1}`} className="w-full h-16 object-cover rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="mt-2 text-sm">
           <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(request.address)}`} target="_blank" rel="noreferrer" className="text-primary underline">Get directions</a>
         </div>
@@ -402,6 +414,7 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
     : null;
 
   const [availableItems, setAvailableItems] = useState<Array<any>>([]);
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -442,10 +455,6 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
               createdAt: item.createdAt ? new Date(item.createdAt) : null,
             }));
           setAvailableItems(itemsList);
-          // Auto-populate items field if empty
-          if ((!formData.items || formData.items.length === 0) && itemsList && itemsList.length > 0) {
-            setFormData(f => ({ ...f, items: itemsList.map((it: any) => it.title).join("; ") }));
-          }
         } else {
           setAvailableItems([]);
         }
@@ -460,6 +469,17 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
 
     return () => unsubscribe();
   }, [currentUser]);
+
+  // Update items field when selected items change
+  React.useEffect(() => {
+    if (selectedItemIds.size > 0 && availableItems.length > 0) {
+      const selectedTitles = availableItems
+        .filter(item => selectedItemIds.has(item.id))
+        .map(item => item.title)
+        .join("; ");
+      setFormData(f => ({ ...f, items: selectedTitles }));
+    }
+  }, [selectedItemIds, availableItems]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -481,6 +501,10 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
       toast({ title: "Missing fields", description: "Please complete items, address, and date", variant: "destructive" });
       return;
     }
+    if (selectedItemIds.size === 0) {
+      toast({ title: "No images selected", description: "Please select at least one item with images to include in your request", variant: "destructive" });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -489,6 +513,26 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
         toast({ title: "Missing user ID", description: "Please log in again", variant: "destructive" });
         return;
       }
+
+      // Collect images from selected items
+      const selectedImages: string[] = [];
+      selectedItemIds.forEach(itemId => {
+        const item = availableItems.find(it => it.id === itemId);
+        if (item) {
+          try {
+            const imgs = typeof item.imageUrls === "string" ? JSON.parse(item.imageUrls || "[]") : (item.imageUrls || []);
+            const imageArray = Array.isArray(imgs) ? imgs : [];
+            selectedImages.push(...imageArray);
+            if (item.imageUrl && !selectedImages.includes(item.imageUrl)) {
+              selectedImages.push(item.imageUrl);
+            }
+          } catch {
+            if (item.imageUrl) {
+              selectedImages.push(item.imageUrl);
+            }
+          }
+        }
+      });
 
       const requestId = push(ref(database, "requests")).key || `req_${Date.now()}`;
       const requestRef = ref(database, `requests/${requestId}`);
@@ -499,6 +543,8 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
         requesterId: currentUserId,
         requesterName: currentUser.name,
         status: "Pending",
+        imageUrls: selectedImages,
+        selectedItemIds: Array.from(selectedItemIds),
         createdAt: new Date().toISOString(),
       };
 
@@ -522,6 +568,16 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const toggleItemSelection = (itemId: string) => {
+    const newSelection = new Set(selectedItemIds);
+    if (newSelection.has(itemId)) {
+      newSelection.delete(itemId);
+    } else {
+      newSelection.add(itemId);
+    }
+    setSelectedItemIds(newSelection);
+  };
+
   return (
     <>
       <DialogHeader>
@@ -540,9 +596,9 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
             data-testid="input-items"
           />
           {availableItems.length > 0 && (
-            <div className="mt-2 text-sm text-muted-foreground">
-              <p className="mb-2">Your posted items:</p>
-              <div className="grid grid-cols-2 gap-2">
+            <div className="mt-4 space-y-3">
+              <p className="text-sm font-medium">Select images from your posts to include:</p>
+              <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto border rounded-lg p-3 bg-muted/30">
                 {availableItems.map((it: any) => {
                   let firstImage: string | null = null;
                   try {
@@ -552,23 +608,38 @@ function NewRequestForm({ onClose }: { onClose: () => void }) {
                     firstImage = it.imageUrl || null;
                   }
 
+                  const isSelected = selectedItemIds.has(it.id);
+
                   return (
-                    <div key={it.id} className="flex items-center gap-2 rounded border p-2 bg-muted/30">
+                    <div
+                      key={it.id}
+                      onClick={() => toggleItemSelection(it.id)}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition ${
+                        isSelected
+                          ? "border-primary bg-primary/10"
+                          : "border-transparent hover:border-primary/30"
+                      }`}
+                    >
                       {firstImage ? (
-                        <img src={firstImage} alt={it.title} className="h-12 w-12 rounded object-cover" />
+                        <img src={firstImage} alt={it.title} className="h-16 w-16 rounded object-cover" />
                       ) : (
-                        <div className="h-12 w-12 rounded border border-dashed border-muted-foreground/40 flex items-center justify-center bg-background">
-                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                        <div className="h-16 w-16 rounded border-2 border-dashed border-muted-foreground/40 flex items-center justify-center bg-background">
+                          <ImageIcon className="h-6 w-6 text-muted-foreground" />
                         </div>
                       )}
-                      <div className="min-w-0">
-                        <p className="truncate text-foreground text-xs font-medium">{it.title}</p>
-                        <p className="text-[11px]">{firstImage ? "Image attached" : "Image placeholder"}</p>
-                      </div>
+                      <p className="text-xs text-center truncate font-medium">{it.title}</p>
+                      {isSelected && (
+                        <div className="text-xs text-primary font-semibold">✓ Selected</div>
+                      )}
                     </div>
                   );
                 })}
               </div>
+              {selectedItemIds.size > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  {selectedItemIds.size} item{selectedItemIds.size !== 1 ? "s" : ""} selected
+                </div>
+              )}
             </div>
           )}
         </div>
