@@ -21,13 +21,16 @@ import { database } from "@/firebase/firebase";
 // Lazy load heavy components
 const GoogleMapView = lazy(() => import("@/components/GoogleMapView"));
 const JunkshopsMap = lazy(() => import("@/components/JunkshopsMap"));
-const TransactionAnalytics = lazy(() => import("@/components/TransactionAnalytics"));
+const PredictiveAnalytics = lazy(() => import("@/components/PredictiveAnalytics"));
 
 export default function Dashboard() {
   const [location, setLocation] = useLocation();
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
   const [activeTab, setActiveTab] = useState("home");
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [selectedUserName, setSelectedUserName] = useState<string>("");
   const [hasUnread, setHasUnread] = useState(false);
 
   const { data: messages = [], refetch: refetchMessages } = useQuery<Message[]>({
@@ -147,6 +150,12 @@ export default function Dashboard() {
       // Ensure userType is set; default to household if missing
       if (!user.userType) user.userType = "household";
       
+      // Admin users should use the admin console
+      if (user.userType === "admin") {
+        setLocation('/admin');
+        return;
+      }
+
       // If profile is incomplete, redirect to complete-profile
       if (!(user as any).profileComplete) {
         console.log('User profile incomplete, redirecting to complete-profile');
@@ -313,9 +322,9 @@ export default function Dashboard() {
         {/* Main Content */}
         <main className="flex-1 p-6">
           {activeTab === "home" && <DashboardHome currentUser={currentUser} />}
-          {activeTab === "items" && <MarketplacePage onNavigateToMessages={() => setActiveTab("messages")} />}
+          {activeTab === "items" && <MarketplacePage onContact={(conversationId, userId, userName) => { setActiveTab("messages"); setSelectedConversationId(conversationId); setSelectedUser(userId); setSelectedUserName(userName); }} />}
           {activeTab === "requests" && <RequestsPage />}
-          {activeTab === "messages" && <MessagesPage />}
+          {activeTab === "messages" && <MessagesPage selectedConversationId={selectedConversationId} selectedUser={selectedUser} selectedUserName={selectedUserName} />}
           {activeTab === "rates" && <RatesPage />}
           {activeTab === "profile" && <ProfilePage />}
         </main>
@@ -438,9 +447,9 @@ function DashboardHome({ currentUser }: { currentUser: UserType }) {
         <p className="text-muted-foreground">Welcome back! Here's what's happening today.</p>
       </div>
 
-      {/* Transaction Analytics: show user-specific analytics in dashboard */}
-      <Suspense fallback={<div>Loading analytics...</div>}>
-        <TransactionAnalytics currentUser={currentUser} />
+      {/* Predictive Analytics: show user-specific predictive analytics in dashboard */}
+      <Suspense fallback={<div>Loading predictive analytics...</div>}>
+        <PredictiveAnalytics currentUser={currentUser} />
       </Suspense>
 
 

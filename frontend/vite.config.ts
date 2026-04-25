@@ -22,7 +22,7 @@ export default defineConfig({
     minify: "terser",
   },
   server: {
-    port: 5173,
+    port: 5006,
     proxy: {
       "/api": {
         target: process.env.VITE_API_URL || "http://localhost:5004",

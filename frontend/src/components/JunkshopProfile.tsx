@@ -56,7 +56,7 @@ export default function JunkshopProfile({ junkshop, onCall, onEmail }: JunkshopP
   };
 
   const handleContactSeller = () => {
-    navigate(`/messages?userId=${junkshop.id}&userName=${encodeURIComponent(junkshop.name)}`);
+    navigate(`/dashboard?tab=messages&userId=${junkshop.id}&userName=${encodeURIComponent(junkshop.name)}`);
   };
 
   return (

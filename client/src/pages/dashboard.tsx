@@ -22,7 +22,7 @@ import { database } from "@/firebase/firebase";
 // Lazy load heavy components
 const GoogleMapView = lazy(() => import("@/components/GoogleMapView"));
 const JunkshopsMap = lazy(() => import("@/components/JunkshopsMap"));
-const TransactionAnalytics = lazy(() => import("@/components/TransactionAnalytics"));
+const PredictiveAnalytics = lazy(() => import("@/components/PredictiveAnalytics"));
 
 export default function Dashboard() {
   const [location, setLocation] = useLocation();
@@ -31,6 +31,9 @@ export default function Dashboard() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [selectedUserName, setSelectedUserName] = useState<string>("");
 
   // 🔄 Sync activeTab from query param when location changes (e.g. via chatbot link)
   // NOTE: We do NOT persist activeTab to localStorage to prevent users from
@@ -171,6 +174,12 @@ export default function Dashboard() {
         return;
       }
       
+      if (user.userType === 'admin') {
+        console.log('Admin user detected in localStorage, redirecting to admin panel');
+        setLocation('/admin');
+        return;
+      }
+      
       setCurrentUser(user);
       return;
     }
@@ -191,6 +200,12 @@ export default function Dashboard() {
           if (!(user as any).profileComplete) {
             console.log('User profile incomplete, redirecting to complete-profile');
             setLocation('/complete-profile');
+            return;
+          }
+          
+          if (user.userType === 'admin') {
+            console.log('Admin user detected from server, redirecting to admin panel');
+            setLocation('/admin');
             return;
           }
           
@@ -288,9 +303,9 @@ export default function Dashboard() {
         {/* Main Content */}
         <main className="flex-1 p-4 md:p-6">
           {activeTab === "home" && <DashboardHome currentUser={currentUser} />}
-          {activeTab === "items" && <MarketplacePage onNavigateToMessages={() => setActiveTab("messages")} />}
+          {activeTab === "items" && <MarketplacePage onContact={(conversationId, userId, userName) => { setActiveTab("messages"); setSelectedConversationId(conversationId); setSelectedUser(userId); setSelectedUserName(userName); }} />}
           {activeTab === "requests" && <RequestsPage />}
-          {activeTab === "messages" && <MessagesPage />}
+          {activeTab === "messages" && <MessagesPage selectedConversationId={selectedConversationId} selectedUser={selectedUser} selectedUserName={selectedUserName} />}
           {activeTab === "rates" && <RatesPage />}
           {activeTab === "profile" && <ProfilePage />}
         </main>
@@ -413,9 +428,9 @@ function DashboardHome({ currentUser }: { currentUser: UserType }) {
         <p className="text-muted-foreground">Welcome back! Here's what's happening today.</p>
       </div>
 
-      {/* Transaction Analytics: show user-specific analytics in dashboard */}
-      <Suspense fallback={<div>Loading analytics...</div>}>
-        <TransactionAnalytics currentUser={currentUser} />
+      {/* Predictive Analytics: show user-specific predictive analytics in dashboard */}
+      <Suspense fallback={<div>Loading predictive analytics...</div>}>
+        <PredictiveAnalytics currentUser={currentUser} />
       </Suspense>
 
 

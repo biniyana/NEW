@@ -32,10 +32,10 @@ const categoryEmojis: Record<string, string> = {
 };
 
 interface MarketplacePageProps {
-  onNavigateToMessages?: () => void;
+  onContact?: (conversationId: string, userId: string, userName: string) => void;
 }
 
-export default function MarketplacePage({ onNavigateToMessages }: MarketplacePageProps) {
+export default function MarketplacePage({ onContact }: MarketplacePageProps) {
 
   const [, navigate] = useLocation();
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -235,6 +235,7 @@ export default function MarketplacePage({ onNavigateToMessages }: MarketplacePag
                 onDeleteItem={(itemId) => setDeletingItemId(itemId)}
                 onEditItem={setEditingItem}
                 navigate={navigate}
+                onContact={onContact}
               />
             ))}
         </div>
@@ -301,7 +302,7 @@ export function ItemCard({ item, currentUser, authUid, onDeleteItem, onEditItem,
       const conversationId = await getOrCreateConversation(currentUser.id, item.sellerId);
       const sellerName = await fetchUserNameFromDB(item.sellerId);
       console.log(`✅ Conversation ready: ${conversationId}`);
-      navigate(`/messages?conversationId=${conversationId}&userId=${item.sellerId}&userName=${encodeURIComponent(sellerName)}`);
+      navigate(`/dashboard?tab=messages&conversationId=${conversationId}&userId=${item.sellerId}&userName=${encodeURIComponent(sellerName)}`);
     } catch (error) {
       console.error("Error creating conversation:", error);
       toast({
@@ -832,9 +833,10 @@ interface SellerCardProps {
   onDeleteItem: (itemId: string) => void;
   onEditItem: (item: Item) => void;
   navigate?: (path: string) => void;
+  onContact?: (conversationId: string, userId: string, userName: string) => void;
 }
 
-function SellerCard({ sellerId, sellerName, items, currentUser, authUid, onDeleteItem, onEditItem, navigate }: SellerCardProps) {
+function SellerCard({ sellerId, sellerName, items, currentUser, authUid, onDeleteItem, onEditItem, navigate, onContact }: SellerCardProps) {
   const isOwner = authUid && sellerId === authUid;
   const { toast } = useToast();
   const [isHandlingContact, setIsHandlingContact] = useState(false);
@@ -859,7 +861,7 @@ function SellerCard({ sellerId, sellerName, items, currentUser, authUid, onDelet
   }, [sellerId]);
 
   const handleContact = async () => {
-    if (!currentUser?.id || !sellerId || !navigate) {
+    if (!currentUser?.id || !sellerId) {
       toast({
         title: "Error",
         description: "Unable to start conversation",
@@ -872,7 +874,11 @@ function SellerCard({ sellerId, sellerName, items, currentUser, authUid, onDelet
     try {
       const conversationId = await getOrCreateConversation(currentUser.id, sellerId);
       console.log(`✅ Conversation ready: ${conversationId}`);
-      navigate(`/messages?conversationId=${conversationId}&userId=${sellerId}&userName=${encodeURIComponent(sellerName)}`);
+      if (onContact) {
+        onContact(conversationId, sellerId, sellerName);
+      } else if (navigate) {
+        navigate(`/dashboard?tab=messages&conversationId=${conversationId}&userId=${sellerId}&userName=${encodeURIComponent(sellerName)}`);
+      }
     } catch (error) {
       console.error("Error creating conversation:", error);
       toast({

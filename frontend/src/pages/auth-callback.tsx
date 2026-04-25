@@ -35,7 +35,13 @@ export default function AuthCallback() {
         // Store user in localStorage
         localStorage.setItem('user', JSON.stringify(user));
 
-        // Check if profile is complete
+        // Redirect admin users to the admin console
+        if (user.userType === 'admin') {
+          console.log('Admin user detected, redirecting to admin dashboard');
+          setLocation('/admin');
+          return;
+        }
+
         if (user.profileComplete) {
           console.log('Profile complete, redirecting to dashboard');
           setLocation('/dashboard');

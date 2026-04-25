@@ -101,11 +101,13 @@ export default function Login() {
         description: "Welcome back to Waiz",
       });
 
-      // Replace the current history entry with the dashboard page
-      // This prevents users from going back to the login page via browser back button
-      const redirectPath = userData.profileComplete ? "/dashboard" : "/complete-profile";
+      const redirectPath = userData.userType === "admin"
+        ? "/admin"
+        : userData.profileComplete
+          ? "/dashboard"
+          : "/complete-profile";
+
       window.history.replaceState(null, "", redirectPath);
-      
       setLocation(redirectPath);
     },
     onError: (error: any) => {
@@ -171,7 +173,7 @@ export default function Login() {
           });
           // Optional: redirect to a "check your email" page
         } else {
-          // Verified → access dashboard
+          // Verified → access dashboard or admin console
           const userData = snapshot.val();
           localStorage.setItem("user", JSON.stringify(userData));
           toast({
@@ -179,9 +181,9 @@ export default function Login() {
             description: "Welcome back to Waiz",
           });
           
-          // Replace history to prevent going back to login
-          window.history.replaceState(null, "", "/dashboard");
-          setLocation("/dashboard");
+          const redirectPath = userData.userType === "admin" ? "/admin" : "/dashboard";
+          window.history.replaceState(null, "", redirectPath);
+          setLocation(redirectPath);
         }
       }
     } catch (error: any) {

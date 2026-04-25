@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Message, User } from "@/models";
-import { Send, MessageCircle, Search, X, Loader2, Trash2 } from "lucide-react";
+import { Send, MessageCircle, Search, X, Loader2, Trash2, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -29,7 +29,13 @@ import {
   deleteConversation,
 } from "@/lib/firebaseConversations";
 
-export default function MessagesPage() {
+interface MessagesPageProps {
+  selectedConversationId?: string | null;
+  selectedUser?: string | null;
+  selectedUserName?: string;
+}
+
+export default function MessagesPage({ selectedConversationId: propSelectedConversationId, selectedUser: propSelectedUser, selectedUserName: propSelectedUserName }: MessagesPageProps) {
   const userStr = localStorage.getItem("user");
   const rawUser: any = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
   const currentUser: User | null = rawUser
@@ -55,7 +61,60 @@ export default function MessagesPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.pathname === "/messages") {
+      setIsRedirecting(true);
+      const search = window.location.search || "";
+      const query = search ? `${search}&tab=messages` : "?tab=messages";
+      console.log('🔄 [MessagesPage] Redirecting /messages to /dashboard with query:', query);
+      navigate(`/dashboard${query}`, { replace: true });
+    }
+  }, [navigate]);
+
+  // If redirecting, show nothing
+  if (isRedirecting) {
+    return null;
+  }
+
+  // Set from props if provided
+  useEffect(() => {
+    if (propSelectedConversationId) {
+      setSelectedConversationId(propSelectedConversationId);
+    }
+    if (propSelectedUser) {
+      setSelectedUser(propSelectedUser);
+    }
+    if (propSelectedUserName) {
+      setSelectedUserName(propSelectedUserName);
+    }
+  }, [propSelectedConversationId, propSelectedUser, propSelectedUserName]);
+
+  // Parse query params to auto-select conversation
+  useEffect(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    const conversationId = params.get('conversationId');
+    const userId = params.get('userId');
+    const userName = params.get('userName');
+
+    if (conversationId && userId) {
+      setSelectedConversationId(conversationId);
+      setSelectedUser(userId);
+      if (userName) {
+        setSelectedUserName(decodeURIComponent(userName));
+      }
+    }
+  }, [location]);
+
+  const handleReturnToDashboard = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      navigate("/dashboard");
+    }
+  };
 
   // Listen to all conversations
   useEffect(() => {
@@ -321,9 +380,21 @@ export default function MessagesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold text-foreground">Messages</h2>
-        <p className="text-muted-foreground">Chat with households and junkshops</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold text-foreground">Messages</h2>
+          <p className="text-muted-foreground">Chat with households and junkshops</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleReturnToDashboard}
+          className="w-full sm:w-auto"
+          data-testid="button-back-dashboard-top"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to dashboard
+        </Button>
       </div>
 
       <div className="grid md:grid-cols-3 gap-6 h-[600px]">
@@ -429,6 +500,16 @@ export default function MessagesPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleReturnToDashboard}
+                      className="text-foreground hover:bg-accent/10"
+                      data-testid="button-back-dashboard"
+                    >
+                      <ArrowLeft className="w-4 h-4 mr-2" />
+                      Back
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"

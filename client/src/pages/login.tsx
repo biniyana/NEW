@@ -57,8 +57,9 @@ export default function Login() {
             const currentUser = await UserController.fetchCurrentUser();
             if (currentUser && (currentUser.uid === storedUser.id || currentUser.uid === (storedUser as any).uid)) {
               // ✅ Server confirms this user is authenticated - safe to redirect
-              console.log("✅ Session validated - redirecting to dashboard");
-              setLocation("/dashboard");
+              const redirectPath = currentUser.userType === "admin" ? "/admin" : "/dashboard";
+              console.log(`✅ Session validated - redirecting to ${redirectPath}`);
+              setLocation(redirectPath);
               return;
             } else {
               // ⚠️ Stored user doesn't match server session - clear it
@@ -76,8 +77,9 @@ export default function Login() {
         if (currentUser) {
           // User is authenticated on server, save to localStorage and redirect
           UserController.saveToLocalStorage(currentUser);
-          console.log("✅ Server session found - redirecting to dashboard");
-          setLocation("/dashboard");
+          const redirectPath = currentUser.userType === "admin" ? "/admin" : "/dashboard";
+          console.log(`✅ Server session found - redirecting to ${redirectPath}`);
+          setLocation(redirectPath);
           return;
         }
       } catch (err) {
@@ -109,7 +111,11 @@ export default function Login() {
 
       // Replace the current history entry with the dashboard page
       // This prevents users from going back to the login page via browser back button
-      const redirectPath = userData.profileComplete ? "/dashboard" : "/complete-profile";
+      const redirectPath = userData.userType === "admin"
+        ? "/admin"
+        : userData.profileComplete
+          ? "/dashboard"
+          : "/complete-profile";
       window.history.replaceState(null, "", redirectPath);
       
       setLocation(redirectPath);

@@ -186,6 +186,23 @@ export class MemStorage implements IStorage {
     this.users.set(household2.id, household2);
 
     // ============================================
+    // ADMIN ACCOUNT
+    // ============================================
+    const adminUser: User = {
+      id: "admin-1",
+      name: "System Admin",
+      email: "admin@example.com",
+      phone: "+63 917 000 0000",
+      address: "Baguio City",
+      password: "admin123",
+      userType: "admin",
+      latitude: null,
+      longitude: null,
+      createdAt: new Date(),
+    };
+    this.users.set(adminUser.id, adminUser);
+
+    // ============================================
     // JUNKSHOP ACCOUNTS
     // ============================================
     const junkshop1: User = {

@@ -29,7 +29,13 @@ import {
   deleteConversation,
 } from "@/lib/firebaseConversations";
 
-export default function MessagesPage() {
+interface MessagesPageProps {
+  selectedConversationId?: string | null;
+  selectedUser?: string | null;
+  selectedUserName?: string;
+}
+
+export default function MessagesPage({ selectedConversationId: propSelectedConversationId, selectedUser: propSelectedUser, selectedUserName: propSelectedUserName }: MessagesPageProps) {
   const userStr = localStorage.getItem("user");
   const rawUser: any = userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
   const currentUser: User | null = rawUser
@@ -56,6 +62,35 @@ export default function MessagesPage() {
   const { toast } = useToast();
 
   const [location] = useLocation();
+
+  // Set from props if provided
+  useEffect(() => {
+    if (propSelectedConversationId) {
+      setSelectedConversationId(propSelectedConversationId);
+    }
+    if (propSelectedUser) {
+      setSelectedUser(propSelectedUser);
+    }
+    if (propSelectedUserName) {
+      setSelectedUserName(propSelectedUserName);
+    }
+  }, [propSelectedConversationId, propSelectedUser, propSelectedUserName]);
+
+  // Parse query params to auto-select conversation
+  useEffect(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    const conversationId = params.get('conversationId');
+    const userId = params.get('userId');
+    const userName = params.get('userName');
+
+    if (conversationId && userId) {
+      setSelectedConversationId(conversationId);
+      setSelectedUser(userId);
+      if (userName) {
+        setSelectedUserName(decodeURIComponent(userName));
+      }
+    }
+  }, [location]);
 
   // Listen to all conversations
   useEffect(() => {

@@ -13,7 +13,7 @@ import viteConfig from "../vite.config";
 import { registerRoutes } from "./routes";
 
 // Use PORT from .env
-const PORT = Number(process.env.PORT || 5005);
+const PORT = Number(process.env.PORT || 5006);
 console.log("Using PORT:", PORT);
 console.log("Genkit AI Enabled:", Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY));
 

@@ -188,7 +188,7 @@ export default function PersonalDashboard({ currentUser }: PersonalDashboardProp
             {stats.isJunkshop ? "📦 Browse Collection Requests" : "🛒 Browse Marketplace"}
           </Button>
         </Link>
-        <Link href="/messages">
+        <Link href="/dashboard?tab=messages">
           <Button variant="outline" className="w-full" size="lg">
             💬 Go to Messages
           </Button>

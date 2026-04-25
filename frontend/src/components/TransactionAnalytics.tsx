@@ -185,7 +185,7 @@ export default function TransactionAnalytics({ currentUser }: TransactionAnalyti
         name: category,
         value: count,
       }))
-      .sort((a, b) => b.value - a.value);
+      .sort((a, b) => (b.value as number) - (a.value as number));
 
     // Request status breakdown
     const statusData = Object.entries(

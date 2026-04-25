@@ -32,10 +32,10 @@ const categoryEmojis: Record<string, string> = {
 };
 
 interface MarketplacePageProps {
-  onNavigateToMessages?: () => void;
+  onContact?: (conversationId: string, userId: string, userName: string) => void;
 }
 
-export default function MarketplacePage({ onNavigateToMessages }: MarketplacePageProps) {
+export default function MarketplacePage({ onContact }: MarketplacePageProps) {
 
   const [, navigate] = useLocation();
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -291,7 +291,11 @@ export function ItemCard({ item, currentUser, authUid, onDeleteItem, onEditItem,
       const conversationId = await getOrCreateConversation(currentUser.id, item.sellerId);
       const sellerName = await fetchUserNameFromDB(item.sellerId);
       console.log(`✅ Conversation ready: ${conversationId}`);
-      navigate(`/messages?conversationId=${conversationId}&userId=${item.sellerId}&userName=${encodeURIComponent(sellerName)}`);
+      if (onContact) {
+        onContact(conversationId, item.sellerId, sellerName);
+      } else {
+        navigate(`/dashboard?tab=messages&conversationId=${conversationId}&userId=${item.sellerId}&userName=${encodeURIComponent(sellerName)}`);
+      }
     } catch (error) {
       console.error("Error creating conversation:", error);
       toast({

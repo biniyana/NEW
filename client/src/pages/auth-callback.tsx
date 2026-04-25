@@ -37,8 +37,13 @@ export default function AuthCallback() {
 
         // Check if profile is complete
         if (user.profileComplete) {
-          console.log('Profile complete, redirecting to dashboard');
-          setLocation('/dashboard');
+          if (user.userType === 'admin') {
+            console.log('Admin user detected, redirecting to admin dashboard');
+            setLocation('/admin');
+          } else {
+            console.log('Profile complete, redirecting to dashboard');
+            setLocation('/dashboard');
+          }
         } else {
           console.log('Profile incomplete, redirecting to complete-profile');
           setLocation('/complete-profile');

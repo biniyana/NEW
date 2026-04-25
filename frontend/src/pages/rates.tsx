@@ -347,7 +347,7 @@ export default function RatesPage() {
                           </Button>
                           <Button 
                             variant="outline"
-                            onClick={() => navigate(`/messages?userId=${shop.id}&userName=${encodeURIComponent(shop.name)}`)}
+                            onClick={() => navigate(`/dashboard?tab=messages&userId=${shop.id}&userName=${encodeURIComponent(shop.name)}`)}
                           >
                             <MessageCircle className="w-4 h-4 mr-2" />
                             Contact
