@@ -31,14 +31,14 @@ export default function Dashboard() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-<<<<<<< HEAD
+
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [selectedUserName, setSelectedUserName] = useState<string>("");
-=======
+
   const [newMarketplaceCount, setNewMarketplaceCount] = useState(0);
   const [newRequestsCount, setNewRequestsCount] = useState(0);
->>>>>>> c33b4168e4892a105640d208d0e97867e280416b
+ 
 
   // 🔄 Sync activeTab from query param when location changes (e.g. via chatbot link)
   // NOTE: We do NOT persist activeTab to localStorage to prevent users from
